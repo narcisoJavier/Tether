@@ -8,8 +8,8 @@ class AppTheme {
   AppTheme._();
 
   static ThemeData dark() {
-    final bgColor = Colors.black;
-    final surfaceColor = Colors.black;
+    const bgColor = Colors.black;
+    const surfaceColor = Colors.black;
 
     final colorScheme = ColorScheme.fromSeed(
       seedColor: AppConstants.primaryGreen,
@@ -115,7 +115,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(
+          borderSide: const BorderSide(
             color: AppConstants.primaryGreen,
             width: 1.5,
           ),

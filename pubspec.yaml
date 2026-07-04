@@ -1,6 +1,7 @@
 name: opa
 description: OPA - OpenSSH Pocket Agent. A Flutter app that makes SSH connectivity effortless.
-version: 0.2.4+1
+publish_to: none
+version: 0.3.0+1
 
 environment:
   sdk: ">=3.10.4 <4.0.0"
@@ -73,3 +74,4 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+

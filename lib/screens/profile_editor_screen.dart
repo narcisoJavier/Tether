@@ -264,7 +264,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
                 _authType == AuthType.passwordAndPublicKey) ...[
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
-                value: _selectedKeyId,
+                initialValue: _selectedKeyId,
                 decoration: InputDecoration(
                   labelText: 'SSH Key',
                   prefixIcon: const Icon(Icons.vpn_key_rounded),
@@ -426,7 +426,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: ProfileColors.palette.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
               final color = ProfileColors.palette[index];
               final isSelected = index == _colorIndex;
@@ -475,11 +475,13 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       final profile = _buildProfile();
       final sshService = ref.read(sshServiceProvider);
 
-      var sock;
+      TailscaleSSHSocket? sock;
       if (_connectionMethod == ConnectionMethod.tailscale) {
         var ts = ref.read(tailscaleServiceProvider);
-        var conn = await ts.dial(profile.host, profile.port, timeout: Duration(seconds: 10));
+        var conn = await ts.dial(profile.host, profile.port, timeout: const Duration(seconds: 10));
         sock = TailscaleSSHSocket(conn);
+      } else {
+        sock = null;
       }
 
       String? privateKey;

@@ -4,7 +4,7 @@
 
 # ⬡ OPA — OpenSSH Pocket Agent
 
-**Connect to any machine from your phone. Run terminals, manage keys, and launch agents — all in one pocket-sized app.**
+**Your server in your pocket. One tap to connect, swipe to command, everything encrypted.**
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.44-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.12-0175C2?logo=dart&logoColor=white)](https://dart.dev)
@@ -15,219 +15,269 @@
 
 ---
 
-## ✨ What's New
+## The Story
 
-### v0.2 — Onboarding, Presets & Polish
-- 🎨 **Refined Dark Aesthetic** — Glassmorphism cards with frosted-glass blur, green accent glow borders, and rounded corners throughout
-- 🚀 **Onboarding Flow** — 4-slide welcome experience for first-time users
-- 🤖 **Agent Presets** — 20+ built-in quick-launch presets for AI agents, dev tools, and system commands
-- 📱 **Terminal Auto-Optimization** — Font auto-adjusts for 80+ cols portrait / 120+ landscape
-- 🖥️ **Landscape Immersive Mode** — Full-screen terminal with hidden app bar
-- 💫 **Animations** — Smooth fade-in, slide-up, scale, and shimmer animations everywhere
-- 🔤 **Google Fonts** — Inter for UI, JetBrains Mono for terminal
-- 🔔 **In-App Update Checker** — Automatically notifies you when a new version is available
+It starts the same way every time.
 
----
+You're away from your desk — couch, commute, cafe — and something breaks on the server. A deploy stalled. A process OOM'd. A log you need to grep. You reach for your phone... and then the dance begins.
 
-## Features
+Find the SSH client. Type the host. Type the port. Type the username. Pray you remember the password or have a key handy. Wait for it to connect. And then you're staring at a tiny terminal with a keyboard that eats half the screen, fighting autocorrect on every grep flag.
 
-| Category | Highlights |
-|----------|-----------|
-| 🔌 **Connections** | Save host/port/credentials for one-tap SSH connections with per-connection color coding |
-| 💻 **Terminal** | Interactive shell with VT100/256-color, scrollback, auto-fit font, and mobile special keys |
-| 🔐 **Key Management** | Generate Ed25519 keys or import existing ones, stored in Android Keystore |
-| ⚡ **Quick Commands** | Save frequently-run commands for one-tap execution |
-| 🤖 **Agent Presets** | Claude Code, opencode, aider, Gemini CLI, Codex, htop, lazygit, tmux, nvim, and more |
+There had to be a better way.
+
+OPA was born from that frustration. Not another terminal emulator — a pocket operations center that makes connecting to any machine feel as natural as opening an app. One tap. Full terminal. Your keys, your commands, your presets — all there, all secure, all offline.
+
+No VPN required. No cloud dependency. No subscription. Just SSH, done right.
 
 ---
 
-## Install
+## What's New — v0.3
 
-Grab the latest release APK from [GitHub Releases](https://github.com/2241812/OPA_Flutter/releases/latest).
+### Swipe-to-Reveal Actions
+Connection cards are gone. Compact **swipeable tiles** take their place — swipe left on any connection to reveal instant-action buttons: **SFTP**, **Config**, and **QCMD** (Quick Commands). Tap goes straight to terminal — no more extra screens between you and your shell.
 
-> **Auto-updates:** OPA checks for new versions on every launch. If an update is available, you'll get a prompt to download the latest APK directly.
+### Built-in Tailscale Networking
+OPA now embeds Tailscale userspace networking directly — no separate app, no VPN profile. Join your tailnet from inside OPA, discover peers by MagicDNS, and connect over encrypted WireGuard tunnels. Your servers don't need public IPs.
 
-<details>
-<summary>📦 Build from Source</summary>
+### Embedded Native Engine
+The Go-based Tailscale runtime (tsnet) compiles alongside the app — one APK, zero external dependencies.
 
-```bash
-# Prerequisites: Flutter SDK ≥3.0
-
-# 1. Clone & install deps
-git clone https://github.com/2241812/OPA_Flutter.git
-cd OPA_Flutter
-flutter pub get
-
-# 2. Run on a connected device
-flutter devices
-flutter run
-
-# 3. Build a release APK
-flutter build apk --release
-# Output: build/app/outputs/flutter-apk/app-release.apk
-```
-
-</details>
+### Secure by Default
+Private keys live in Android Keystore, passwords in local Hive, biometric lock available. Zero telemetry, zero cloud sync.
 
 ---
 
-## Screenshots
+## How It Works
 
-<div align="center">
-  <table>
-    <tr>
-      <td><b>Home Screen</b></td>
-      <td><b>Terminal</b></td>
-      <td><b>Key Management</b></td>
-    </tr>
-    <tr>
-      <td width="33%"><i>Connection profiles & quick commands</i></td>
-      <td width="33%"><i>Full SSH terminal with auto-fit</i></td>
-      <td width="33%"><i>Generate & manage SSH keys</i></td>
-    </tr>
-  </table>
-</div>
+### One-Tap Connections
+Add a server once — host, port, username, auth method — and it's saved forever. Your connection list becomes a launchpad. **Tap any tile** and you're in a full SSH session before the thought finishes.
+
+Each connection gets a color-coded accent bar so you can spot production, staging, and dev at a glance.
+
+### Swipe to Command
+Swipe left on any connection tile and three buttons slide in:
+- **SFTP** — browse remote files
+- **Config** — edit connection details
+- **QCMD** — launch quick commands against this server
+
+Release and the tile snaps back. No accidental triggers, no friction.
+
+### Terminal, Reimagined for Mobile
+The terminal is a first-class mobile experience:
+- **Auto-fit font** — 80+ columns in portrait, 120+ in landscape
+- **Rotate to immersive** — landscape hides everything but the shell
+- **Smart keyboard bar** — TAB, ESC, arrows, Ctrl+C always one tap away
+- **VT100/256-color** — full terminal emulation via xterm.dart
+- **Scrollback** — never miss output that scrolls off screen
+
+### Your Keys, Your Way
+Generate Ed25519 key pairs in the app, or import existing ones. Private keys never leave your device — stored encrypted in Android Keystore.
+
+### Agent Presets — Launch Anything
+20+ pre-built quick commands for the tools you actually use:
+- **AI Agents:** Claude Code, opencode, aider, Gemini CLI, Codex
+- **Dev Tools:** htop, lazygit, tmux, nvim, btop, fastfetch
+- **System:** journalctl, docker ps, df -h, free -m, ss -tulpn
+- **Network:** iperf3, mtr, nmap, tcpdump, traceroute
+
+---
+
+## Architecture
+
+Architecture section:
+Home Screen (ConnectionTile) to Terminal Screen (xterm.dart)
+
+~~~
+OPA App
+  Home Screen (ConnectionTile) --> Terminal Screen (xterm.dart)
+    --> dartssh2 (SSH via password, key, or both)
+      --> Tailscale (embedded tsnet: WireGuard, MagicDNS, DERP)
+        --> Target server
+
+Persistent storage:
+  Hive DB --> profiles, quick commands
+  Android Keystore --> private keys (hardware-backed)
+  SharedPrefs --> onboarding state
+~~~
+
+### Key Decisions
+
+| Decision | Why |
+|----------|-----|
+| Flutter + Dart | Cross-platform, native perf, mature ecosystem |
+| dartssh2 | Pure-Dart SSH -- no native bindings, full control |
+| xterm.dart | VT100/256-color terminal widget with scrollback |
+| Tailscale (embedded) | Per-process tsnet, no VPN app or root needed |
+| ConnectionTile (swipe) | GestureDetector + AnimationController, no extra deps |
+| Hive | Fast local NoSQL, no SQLite boilerplate |
+| Riverpod | Compile-safe state, context-independent |
+| Android Keystore | HW-backed storage, keys never leave secure enclave |
 
 ---
 
 ## Project Structure
 
-```
+~~~
 lib/
-├── main.dart                          # App entry, Hive init, theme, routing
-├── app_theme.dart                     # Dark theme with glassmorphism
-├── app_router.dart                    # GoRouter with onboarding guard
-├── models/
-│   ├── connection_profile.dart        # SSH connection profile model
-│   ├── ssh_key_pair.dart              # SSH key metadata model
-│   └── quick_command.dart             # Saved command model
-├── services/
-│   ├── ssh_service.dart               # dartssh2 wrapper
-│   ├── key_service.dart               # Key gen + secure storage
-│   ├── onboarding_service.dart        # First-launch detection
-│   ├── update_service.dart            # GitHub Releases update checker
-│   ├── profile_storage_service.dart   # Hive persistence
-│   └── hive_adapters.dart             # Manual Hive type adapters
-├── screens/
-│   ├── home_screen.dart               # Connections list + quick commands
-│   ├── onboarding_screen.dart         # 4-slide welcome flow
-│   ├── terminal_screen.dart           # xterm.dart with auto-fit
-│   ├── profile_editor_screen.dart     # Add/edit connections
-│   ├── key_management_screen.dart     # Generate/import/delete keys
-│   └── quick_commands_screen.dart     # Manage commands + agent presets
-├── widgets/
-│   ├── connection_card.dart            # Glassmorphism profile card
-│   └── key_card.dart                   # Glassmorphism key card
-└── utils/
-    ├── constants.dart                  # App-wide constants & colors
-    ├── agent_presets.dart              # 20+ agent/tool preset catalog
-    └── ssh_key_encoder.dart            # Ed25519 key encoding
-```
++-- main.dart                       # App entry -- Hive init, theme, routing
++-- app_theme.dart                  # Dark glassmorphism theme
++-- app_router.dart                 # GoRouter + onboarding guard
++-- models/
+|   +-- connection_profile.dart     # SSH profile (host, port, auth)
+|   +-- ssh_key_pair.dart           # Ed25519 key metadata
+|   +-- quick_command.dart          # Saved command + presets
++-- services/
+|   +-- ssh_service.dart            # dartssh2 wrapper
+|   +-- key_service.dart            # Key gen + Keystore CRUD
+|   +-- onboarding_service.dart     # First-launch detection
+|   +-- update_service.dart         # GitHub Releases update check
+|   +-- profile_storage_service.dart # Hive persistence
+|   +-- hive_adapters.dart          # Hive type adapters
++-- screens/
+|   +-- home_screen.dart            # Connection tiles + commands
+|   +-- onboarding_screen.dart      # 4-slide welcome flow
+|   +-- terminal_screen.dart        # xterm.dart + auto-fit + keyboard bar
+|   +-- profile_editor_screen.dart  # Add/edit connections
+|   +-- key_management_screen.dart  # Generate/import/delete keys
+|   +-- quick_commands_screen.dart  # Preset browser + custom
++-- widgets/
+|   +-- connection_tile.dart        # Swipeable tile -- tap/swipe actions
+|   +-- key_card.dart               # Glassmorphism key card
++-- utils/
+    +-- constants.dart              # Colors, spacing, constants
+    +-- agent_presets.dart          # 20+ agent/tool presets
+    +-- ssh_key_encoder.dart        # Ed25519 wire format encoding
+~~~
 
 ---
 
-## How to Use
+## Getting Started
 
-### 1. First Launch
-A 4-slide onboarding walkthrough introduces the app. Tap **Skip** or swipe through.
+### Install
+Download the latest APK from [GitHub Releases](https://github.com/2241812/OPA_Flutter/releases/latest).
+Auto-updates are built in -- OPA checks for new versions on launch.
 
-### 2. Add a Connection
-Tap the **+** FAB → enter host, port (default 22), and username → choose auth:
-- **Password** — quick and easy
-- **Key** — more secure (generate or import a key first)
-- **Both** — password + key
+### Build from Source
+Prerequisites: Flutter SDK >= 3.0, Go >= 1.26 (for Tailscale native compilation), Android NDK.
 
-### 3. Set Up Key-Based Auth
-1. Go to **SSH Keys** (key icon) → tap **+** → **Generate Ed25519 Key**
-2. Copy the public key
-3. On your server, append it to `~/.ssh/authorized_keys`:
-   ```bash
-   echo "ssh-ed25519 AAAA... opa" >> ~/.ssh/authorized_keys
-   ```
-
-### 4. Connect & Use Terminal
-- Tap a connection card to open the terminal
-- Font auto-adjusts — 80+ cols portrait, 120+ landscape
-- Rotate to landscape for immersive full-screen mode
-- Use the keyboard bar for TAB, ESC, arrows, Ctrl+C
-
-### 5. Launch Agent Presets
-- Go to **Quick Commands** (lightning icon)
-- Browse built-in presets by category
-- Tap a preset → pick a server → command launches in terminal
+~~~bash
+git clone https://github.com/2241812/OPA_Flutter.git
+cd OPA_Flutter
+flutter pub get
+flutter run             # Run on connected device
+flutter build apk --release  # Release APK
+~~~
 
 ---
 
-## Target PC SSH Setup
+## First-Time Setup
+
+1. Swipe through the 4-slide onboarding or tap Skip.
+2. Tap + to add your first server (host, port 22, username, auth method).
+3. Set up key-based auth: SSH Keys -> + -> Generate Ed25519 Key -> Copy.
+   On your server: echo "ssh-ed25519 AAAAC3... opa" >> ~/.ssh/authorized_keys
+4. Tap any connection tile to open the terminal instantly.
+5. Swipe left for SFTP, Config, or QCMD quick commands.
+
+---
+
+## Setting Up a Target Server
 
 <details>
-<summary><b>🖥️ Windows (OpenSSH Server)</b></summary>
+<summary><b>Windows (OpenSSH Server)</b></summary>
 
-```powershell
-# Install OpenSSH Server (run as admin)
+~~~powershell
+# Install (run as Administrator)
 Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
-
-# Start the service
+# Start and enable
 Start-Service sshd
-Set-Service -Name sshd -StartupType 'Automatic'
-
+Set-Service -Name sshd -StartupType Automatic
 # Find your IP
 ipconfig
-```
-
+~~~
 </details>
 
 <details>
-<summary><b>🐧 Linux / macOS</b></summary>
+<summary><b>Linux</b></summary>
 
-```bash
-# Linux (Debian/Ubuntu)
+~~~bash
 sudo apt install openssh-server
 sudo systemctl enable --now ssh
+~~~
+</details>
 
-# macOS: System Settings → General → Sharing → Remote Login
-```
-
+<details>
+<summary><b>macOS</b></summary>
+System Settings -> General -> Sharing -> toggle Remote Login ON.
 </details>
 
 ---
 
-## Key Dependencies
+## Tailscale Networking
+
+OPA embeds package:tailscale - userspace Tailscale networking powered by upstream Go tsnet. No separate Tailscale app needed.
+
+- **Join your tailnet** from inside OPA - authenticate once, connect forever
+- **MagicDNS** - reach servers by .ts.net hostname, no IP wrangling
+- **WireGuard encryption** - every byte between you and your server
+- **DERP relay fallback** - works through restrictive NATs
+- **Per-process** - no system-wide VPN, no root, no VPN profile
+
+### Requirements
+1. A Tailscale or Headscale tailnet
+2. An auth key from your tailnet admin
+3. Enable Tailscale in OPA Settings and enter your auth key
+
+The node identity is persisted in the app support directory (excluded from cloud backups).
+
+---
+
+## Tech Stack
 
 | Package | Purpose |
 |---------|---------|
-| [`dartssh2`](https://pub.dev/packages/dartssh2) | SSH client (auth, shell, exec, SFTP) |
-| [`xterm`](https://pub.dev/packages/xterm) | Terminal emulator widget |
-| [`pinenacl`](https://pub.dev/packages/pinenacl) | Ed25519 key generation |
-| [`flutter_secure_storage`](https://pub.dev/packages/flutter_secure_storage) | Encrypted private key storage |
-| [`hive`](https://pub.dev/packages/hive) | Local NoSQL storage |
-| [`flutter_riverpod`](https://pub.dev/packages/flutter_riverpod) | State management |
-| [`go_router`](https://pub.dev/packages/go_router) | Navigation with transitions |
-| [`google_fonts`](https://pub.dev/packages/google_fonts) | Inter + JetBrains Mono |
-| [`flutter_animate`](https://pub.dev/packages/flutter_animate) | Declarative animations |
-| [`url_launcher`](https://pub.dev/packages/url_launcher) | Open APK download links |
+| dartssh2 | Pure-Dart SSH client - auth, shell, exec, SFTP |
+| xterm | Terminal emulator - VT100, 256-color, scrollback |
+| tailscale | Embedded WireGuard tailnet via Go tsnet FFI |
+| pinenacl | Ed25519 key pair generation |
+| flutter_secure_storage | Encrypted on-device key storage |
+| hive + hive_flutter | Local NoSQL profiles and commands |
+| flutter_riverpod | Compile-safe state management |
+| go_router | Declarative routing with transitions |
+| google_fonts | Inter (UI) + JetBrains Mono (terminal) |
+| flutter_animate | Spring/fade/slide animations |
+| url_launcher | APK download links |
+| package_info_plus | Runtime version for update checks |
+| local_auth | Biometric app lock |
+
+---
+
+## Security Model
+
+| Layer | How OPA Protects You |
+|-------|----------------------|
+| Private keys | Android Keystore - hardware-backed, never exposed as plaintext |
+| Passwords | Hive database - local only, never sent externally |
+| SSH transport | Direct socket, encrypted by SSH protocol, no MITM |
+| Tailscale | WireGuard end-to-end, DERP relayed only when necessary |
+| Network | Fully offline - zero telemetry, zero cloud, zero third-party |
+| App access | Optional biometric lock (fingerprint or face) |
+| Backup | Tailscale state dir excluded from cloud backups |
 
 ---
 
 ## Roadmap
 
-- [ ] SFTP file browser (upload/download/manage remote files)
-- [ ] Port forwarding UI (local/remote/dynamic SOCKS5)
-- [ ] Jump host / bastion connection chaining
-- [ ] SSH agent forwarding
-- [ ] Session recording & replay
-- [ ] Snippet/profile import/export
-- [ ] iOS support
+- [ ] SFTP file browser - upload, download, manage remote files
+- [ ] Port forwarding UI - local, remote, dynamic (SOCKS5) tunnels
+- [ ] Jump host / bastion - chain through servers
+- [ ] SSH agent forwarding - use local keys remotely
+- [ ] Session recording and replay
+- [ ] Profile import and export
 - [ ] Custom preset editor
-
----
-
-## Security Notes
-
-- **Private keys** are stored in the device's encrypted keystore (Android Keystore / iOS Keychain)
-- **Passwords** are stored in the local Hive database — prefer key-based auth for higher security
-- All SSH connections use direct socket connections (no proxy)
-- Fully offline — no telemetry, no cloud sync
+- [ ] iOS support
+- [ ] Split APKs by ABI for smaller downloads
+- [ ] Tailscale Taildrop - P2P file transfers over tailnet
 
 ---
 
@@ -235,6 +285,8 @@ sudo systemctl enable --now ssh
 
 ## License
 
-[MIT](LICENSE) · Built with ❤️ by [Renzo Javier](https://github.com/2241812)
+[MIT](LICENSE)  Built with love by Renzo Javier
+
+*OPA is not affiliated with OpenSSH, Tailscale, or any referenced tool.*
 
 </div>

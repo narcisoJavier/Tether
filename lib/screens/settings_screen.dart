@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -205,7 +205,7 @@ class _ScrollbackTile extends ConsumerWidget {
                   children: [
                     Text('Scrollback Lines', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
                     const SizedBox(height: 2),
-                    Text(label, style: GoogleFonts.jetBrainsMono(fontSize: 12, color: Color(0xFFFFAB40))),
+                    Text(label, style: GoogleFonts.jetBrainsMono(fontSize: 12, color: const Color(0xFFFFAB40))),
                   ],
                 ),
               ),
@@ -217,7 +217,7 @@ class _ScrollbackTile extends ConsumerWidget {
             min: 500,
             max: 50000,
             divisions: 99,
-            activeColor: Color(0xFFFFAB40),
+            activeColor: const Color(0xFFFFAB40),
             inactiveColor: Colors.white.withValues(alpha: 0.1),
             onChanged: (v) => ref.read(terminalScrollbackProvider.notifier).setLines(v.round()),
           ),
@@ -258,7 +258,7 @@ class _KeepaliveTile extends ConsumerWidget {
                   children: [
                     Text('Keepalive Interval', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
                     const SizedBox(height: 2),
-                    Text('${keepalive}s', style: GoogleFonts.jetBrainsMono(fontSize: 12, color: Color(0xFF18FFFF))),
+                    Text('${keepalive}s', style: GoogleFonts.jetBrainsMono(fontSize: 12, color: const Color(0xFF18FFFF))),
                   ],
                 ),
               ),
@@ -270,7 +270,7 @@ class _KeepaliveTile extends ConsumerWidget {
             min: 5,
             max: 300,
             divisions: 59,
-            activeColor: Color(0xFF18FFFF),
+            activeColor: const Color(0xFF18FFFF),
             inactiveColor: Colors.white.withValues(alpha: 0.1),
             onChanged: (v) => ref.read(terminalKeepaliveProvider.notifier).setInterval(v.round()),
           ),
@@ -365,7 +365,7 @@ class _ImportTile extends ConsumerWidget {
               Container(
                 width: 40, height: 40,
                 decoration: BoxDecoration(
-                  color: Color(0xFF448AFF).withValues(alpha: 0.1),
+                  color: const Color(0xFF448AFF).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.file_download_outlined, size: 20, color: Color(0xFF448AFF)),

@@ -13,7 +13,7 @@ import '../services/profile_storage_service.dart';
 import '../services/update_service.dart';
 import '../services/tailscale_provider.dart';
 import '../utils/constants.dart';
-import '../widgets/connection_card.dart';
+import '../widgets/connection_tile.dart';
 
 /// Main home screen showing saved connections and quick commands.
 class HomeScreen extends ConsumerStatefulWidget {
@@ -26,6 +26,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   NodeState? _tailscaleNodeState;
+  bool _tailscaleListenerRegistered = false;
 
   @override
   void initState() {
@@ -36,7 +37,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       duration: const Duration(milliseconds: 250),
     );
     _checkForUpdate();
-    _initTailscaleListener();
   }
 
   Future<void> _checkForUpdate() async {
@@ -45,18 +45,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _showUpdateDialog(info);
   }
 
-  void _initTailscaleListener() {
-    ref.listen<AsyncValue<NodeState?>>(tailscaleStateProvider, (_, next) {
-      final state = next.valueOrNull;
-      if (!mounted) return;
-      setState(() => _tailscaleNodeState = state);
-      if (state == NodeState.needsLogin) {
-        _showAuthUrl();
-      }
-    });
-  }
-
-  Future<void> _showAuthUrl() async {
+Future<void> _showAuthUrl() async {
     try {
       final ts = ref.read(tailscaleServiceProvider);
       final st = await ts.status();
@@ -70,7 +59,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
             backgroundColor: AppConstants.surfaceDark,
             title: const Text('Tailscale Auth Required'),
-            content: Text('Open this URL in a browser to authenticate:'),
+            content: const Text('Open this URL in a browser to authenticate:'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
@@ -127,7 +116,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         backgroundColor: AppConstants.surfaceDark,
         title: Row(
           children: [
-            Icon(
+            const Icon(
               Icons.system_update_rounded,
               color: AppConstants.primaryGreen,
               size: 24,
@@ -245,32 +234,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         backgroundColor: AppConstants.surfaceDark,
         title: Row(children: [
           Container(width:10,height:10,decoration:BoxDecoration(shape:BoxShape.circle,color:stateColor,boxShadow:[BoxShadow(color:stateColor.withValues(alpha: 0.4),blurRadius:6)])),
-          SizedBox(width:10),
-          Text('Tailscale Node'),
+          const SizedBox(width:10),
+          const Text('Tailscale Node'),
         ]),
         content: Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
           _tsInfoRow('Status',stateLabel,stateColor),
           if(st!=null) ...[
-            SizedBox(height:6),
+            const SizedBox(height:6),
             _tsInfoRow('IPv4',st.ipv4??'-',Colors.white70),
-            SizedBox(height:6),
+            const SizedBox(height:6),
             _tsInfoRow('DNS',st.magicDNSSuffix??'-',Colors.white70),
-            SizedBox(height:6),
-            _tsInfoRow('Node ID',st.stableNodeId??"-",Colors.white70),
+            const SizedBox(height:6),
+            _tsInfoRow('Node ID',st.stableNodeId??'-',Colors.white70),
           ],
-          SizedBox(height:12),
+          const SizedBox(height:12),
           _tsInfoRow('Auth Key',hasAuthKey!=null?'Configured':'Not set',hasAuthKey!=null?AppConstants.primaryGreen:Colors.white38),
         ]),
         actions: [
           TextButton(onPressed: () async {
             Navigator.pop(ctx);
             try { await ts.logout(); if(mounted) setState((){}); } catch(_) {}
-          }, child: Text('Logout')),
+          }, child: const Text('Logout')),
           TextButton(onPressed: () async {
             Navigator.pop(ctx);
             try { await ts.up(); } catch(_) {}
-          }, child: Text('Reconnect')),
-          ElevatedButton(onPressed: ()=>Navigator.pop(ctx), child: Text('Close')),
+          }, child: const Text('Reconnect')),
+          ElevatedButton(onPressed: ()=>Navigator.pop(ctx), child: const Text('Close')),
         ],
       );
     });
@@ -281,7 +270,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label,
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.white54,
             fontSize: 13,
           ),
@@ -299,6 +288,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (!_tailscaleListenerRegistered) {
+      _tailscaleListenerRegistered = true;
+      ref.listen<AsyncValue<NodeState?>>(tailscaleStateProvider, (_, next) {
+        final state = next.valueOrNull;
+        if (!mounted) return;
+        setState(() => _tailscaleNodeState = state);
+        if (state == NodeState.needsLogin) {
+          _showAuthUrl();
+        }
+      });
+    }
+
     final storage = ref.watch(profileStorageProvider);
     final profiles = storage.listProfiles();
     final commands = storage.listCommands();
@@ -309,25 +310,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 28,
-              height: 28,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppConstants.primaryGreen.withValues(alpha: 0.1),
+                color: AppConstants.primaryGreen.withValues(alpha: 0.12),
                 border:
-                    Border.all(color: AppConstants.primaryGreen.withValues(alpha: 0.2)),
+                    Border.all(color: AppConstants.primaryGreen.withValues(alpha: 0.25)),
               ),
               child: const Icon(
                 Icons.terminal_rounded,
-                size: 16,
+                size: 18,
                 color: AppConstants.primaryGreen,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Text(
               'OPA',
               style: GoogleFonts.inter(
-                fontSize: 18,
+                fontSize: 20,
                 fontWeight: FontWeight.w700,
                 color: Colors.white,
                 letterSpacing: 1.5,
@@ -336,22 +337,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ],
         ),
         actions: [
-          IconButton(
-            icon: Icon(
-              Icons.vpn_key_rounded,
-              color: Colors.white.withValues(alpha: 0.6),
-            ),
-            tooltip: 'SSH Keys',
-            onPressed: () => context.push('/keys'),
-          ),
-          IconButton(
-            icon: Icon(
-              Icons.flash_on_rounded,
-              color: Colors.white.withValues(alpha: 0.6),
-            ),
-            tooltip: 'Quick Commands',
-            onPressed: () => context.push('/commands'),
-          ),
           IconButton(
             icon: Icon(
               Icons.settings_rounded,
@@ -414,7 +399,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           child: Text(
                             '${profiles.length}',
                             style: GoogleFonts.inter(
-                              fontSize: 12,
+                              fontSize: 19,
                               color: AppConstants.primaryGreen,
                               fontWeight: FontWeight.w700,
                             ),
@@ -460,11 +445,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               )
             else
               ...profiles.map(
-                (profile) => ConnectionCard(
+                (profile) => ConnectionTile(
                   profile: profile,
                   tailscaleState: _tailscaleNodeState,
                   onTap: () => _connectTo(profile),
                   onLongPress: () => _editProfile(profile),
+                  onSftpTap: () => context.push('/sftp/${profile.id}'''),
+                  onConfigTap: () => context.push('/profile/${profile.id}'''),
+                  onQuickCommandsTap: () => context.push('/commands'),
                 ),
               ),
 
@@ -499,7 +487,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       child: Text(
                         '${commands.length}',
                         style: GoogleFonts.inter(
-                          fontSize: 12,
+                          fontSize: 19,
                           color: const Color(0xFFFFAB40),
                           fontWeight: FontWeight.w700,
                         ),
@@ -543,14 +531,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ),
       floatingActionButton: Stack(
         alignment: Alignment.bottomRight,
+        clipBehavior: Clip.none,
         children: [
+          if (_menuOpen) const SizedBox(width: 200, height: 370),
           ..._buildMenuActions(),
           FloatingActionButton(
             onPressed: _toggleMenu,
-            child: AnimatedRotation(
-              turns: _menuOpen ? 0.375 : 0,
-              duration: const Duration(milliseconds: 200),
-              child: const Icon(Icons.add_rounded),
+            child: AnimatedIcon(
+              icon: AnimatedIcons.menu_close,
+              progress: _menuAnimCtrl,
             ),
           ),
         ],
@@ -570,7 +559,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           Icon(
             icon,
             size: 64,
-            color: Colors.white.withValues(alpha: 0.1),
+            color: AppConstants.primaryGreen.withValues(alpha: 0.15),
           )
               .animate(onPlay: (c) => c.repeat())
               .shimmer(
@@ -606,7 +595,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   Widget _buildQuickCommandChip(QuickCommand cmd) {
-    final accent = const Color(0xFFFFAB40);
+    const accent = Color(0xFFFFAB40);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
       child: Container(
@@ -680,7 +669,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   void _editProfile(ConnectionProfile profile) {
-    context.push('/profile/${profile.id}');
+    context.push('/profile/${profile.id}${profile.id}');
   }
 
   /// Whether the FAB expansion menu is open.
@@ -709,8 +698,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   List<Widget> _buildMenuActions() {
+    const double bottomBase = 72.0;
+    const double itemH = 48.0;
+    const double gap = 12.0;
     return [
-      _MenuItem(
+      Positioned(bottom: bottomBase + 3 * (itemH + gap), right: 0, child: _MenuItem(
         animCtrl: _menuAnimCtrl,
         index: 3,
         icon: Icons.settings_ethernet_rounded,
@@ -720,35 +712,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           _toggleMenu();
           _showTailscaleSettings();
         },
-      ),
-      _MenuItem(
+      )),
+      Positioned(bottom: bottomBase + 2 * (itemH + gap), right: 0, child: _MenuItem(
         animCtrl: _menuAnimCtrl,
         index: 2,
         icon: Icons.flash_on_rounded,
         color: const Color(0xFFFFAB40),
         label: 'Quick Command',
         onTap: () => context.push('/commands'),
-      ),
-      _MenuItem(
+      )),
+      Positioned(bottom: bottomBase + 1 * (itemH + gap), right: 0, child: _MenuItem(
         animCtrl: _menuAnimCtrl,
         index: 1,
         icon: Icons.vpn_key_rounded,
         color: const Color(0xFF448AFF),
         label: 'Generate SSH Key',
         onTap: () => context.push('/keys'),
-      ),
-      _MenuItem(
+      )),
+      Positioned(bottom: bottomBase, right: 0, child: _MenuItem(
         animCtrl: _menuAnimCtrl,
         index: 0,
         icon: Icons.add_circle_outline_rounded,
         color: AppConstants.primaryGreen,
         label: 'New Connection',
         onTap: () => context.push('/profile/new'),
-      ),
+      )),
     ];
   }
 }
-
 
 /// A single animated FAB menu item that slides and fades in.
 class _MenuItem extends StatelessWidget {
@@ -785,15 +776,31 @@ class _MenuItem extends StatelessWidget {
       ).animate(animation),
       child: FadeTransition(
         opacity: animation,
-        child: SizedBox(
-          width: 48,
-          height: 48,
-          child: FloatingActionButton.small(
-            heroTag: 'fab_menu_' + index.toString(),
-            backgroundColor: color.withValues(alpha: 0.15),
-            onPressed: onTap,
-            child: Icon(icon, color: color, size: 20),
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Text(
+                label,
+                style: GoogleFonts.inter(
+                  color: color,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 56,
+              height: 56,
+              child: FloatingActionButton(
+                heroTag: 'fab_menu_$index',
+                backgroundColor: color.withValues(alpha: 0.15),
+                onPressed: onTap,
+                child: Icon(icon, color: color, size: 24),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -11,7 +11,7 @@ class AppVersion {
   AppVersion._();
 
   /// Compile-time fallback used when the platform package-info lookup fails.
-  static const String _fallbackVersion = '0.2.4';
+  static const String _fallbackVersion = '0.3.0';
 
   static String? _cached;
 
@@ -35,3 +35,4 @@ class AppVersion {
   /// fallback if [get] hasn't been awaited yet.
   static String get current => _cached ?? _fallbackVersion;
 }
+

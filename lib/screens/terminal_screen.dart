@@ -169,11 +169,13 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen>
 
       final sshService = ref.read(sshServiceProvider);
 
-      var sock;
+      TailscaleSSHSocket? sock;
       if (profile.connectionMethod == ConnectionMethod.tailscale) {
         var ts = ref.read(tailscaleServiceProvider);
-        var conn = await ts.dial(profile.host, profile.port, timeout: Duration(seconds: 10));
+        var conn = await ts.dial(profile.host, profile.port, timeout: const Duration(seconds: 10));
         sock = TailscaleSSHSocket(conn);
+      } else {
+        sock = null;
       }
 
       String? privateKey;
@@ -458,30 +460,30 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen>
 
   // ── Terminal color theme ──────────────────────────────────────────
 
-  static final TerminalTheme _terminalTheme = TerminalTheme(
+  static const TerminalTheme _terminalTheme = TerminalTheme(
     cursor: AppConstants.primaryGreen,
-    selection: const Color(0x7F00E676),
+    selection: Color(0x7F00E676),
     foreground: Colors.white,
     background: AppConstants.backgroundDark,
-    black: const Color(0xFF000000),
-    red: const Color(0xFFFF5252),
+    black: Color(0xFF000000),
+    red: Color(0xFFFF5252),
     green: AppConstants.primaryGreen,
-    yellow: const Color(0xFFFFAB40),
-    blue: const Color(0xFF448AFF),
-    magenta: const Color(0xFFE040FB),
-    cyan: const Color(0xFF18FFFF),
-    white: const Color(0xFFFFFFFF),
-    brightBlack: const Color(0xFF546E7A),
-    brightRed: const Color(0xFFFF8A80),
-    brightGreen: const Color(0xFF69F0AE),
-    brightYellow: const Color(0xFFFFD740),
-    brightBlue: const Color(0xFF82B1FF),
-    brightMagenta: const Color(0xFFFF80AB),
-    brightCyan: const Color(0xFF84FFFF),
-    brightWhite: const Color(0xFFFFFFFF),
-    searchHitBackground: const Color(0x7FFFFFFF),
-    searchHitBackgroundCurrent: const Color(0x7F00E676),
-    searchHitForeground: const Color(0xFF000000),
+    yellow: Color(0xFFFFAB40),
+    blue: Color(0xFF448AFF),
+    magenta: Color(0xFFE040FB),
+    cyan: Color(0xFF18FFFF),
+    white: Color(0xFFFFFFFF),
+    brightBlack: Color(0xFF546E7A),
+    brightRed: Color(0xFFFF8A80),
+    brightGreen: Color(0xFF69F0AE),
+    brightYellow: Color(0xFFFFD740),
+    brightBlue: Color(0xFF82B1FF),
+    brightMagenta: Color(0xFFFF80AB),
+    brightCyan: Color(0xFF84FFFF),
+    brightWhite: Color(0xFFFFFFFF),
+    searchHitBackground: Color(0x7FFFFFFF),
+    searchHitBackgroundCurrent: Color(0x7F00E676),
+    searchHitForeground: Color(0xFF000000),
   );
 
   // ── AppBar ───────────────────────────────────────────────────────

@@ -90,7 +90,7 @@ class SshKeyEncoder {
     //   public key blob
     //   encrypted private key blob
     final outer = <int>[];
-    outer.addAll(utf8.encode('openssh-key-v1\0'));
+    outer.addAll(utf8.encode('openssh-key-v10'));
     _writeString(outer, 'none'); // ciphername
     _writeString(outer, 'none'); // kdfname
     _writeBytes(outer, []); // kdf options

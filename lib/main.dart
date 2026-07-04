@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
@@ -34,14 +35,27 @@ void main() async {
   await Hive.openBox<QuickCommand>('quick_commands');
 
   // Init embedded Tailscale node
+  //
+  // Check CPU architecture first: on x86_64 emulators the Go runtime
+  // makes syscalls that seccomp blocks -> SIGSYS kills the process
+  // (Dart try-catch cannot catch signal-level crashes).
   TailscaleService? tailscaleService;
   try {
-    final d = await getApplicationSupportDirectory();
-    Tailscale.init(stateDir: d.path, logLevel: TailscaleLogLevel.silent);
-    tailscaleService = TailscaleService();
-    tailscaleService.initialize(d.path);
+    const platform = MethodChannel('com.opa.app/cpu_abi');
+    final abis = (await platform.invokeMethod('getSupportedAbis'))
+        as List<dynamic>?;
+    final isX86_64 = abis?.any((a) => a == 'x86_64') ?? false;
+
+    if (isX86_64) {
+      debugPrint('[TS] Skipping Tailscale init: x86_64 emulator detected');
+    } else {
+      final d = await getApplicationSupportDirectory();
+      Tailscale.init(stateDir: d.path, logLevel: TailscaleLogLevel.silent);
+      tailscaleService = TailscaleService();
+      tailscaleService.initialize(d.path);
+    }
   } catch (e) {
-    debugPrint("[TS] " + e.toString());
+    debugPrint('[TS] Tailscale init skipped/errored: $e');
   }
 
   runApp(

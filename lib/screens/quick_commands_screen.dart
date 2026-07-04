@@ -41,7 +41,7 @@ class _QuickCommandsScreenState extends ConsumerState<QuickCommandsScreen> {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.tune_rounded, size: 20),
+            icon: const Icon(Icons.tune_rounded, size: 20),
             tooltip: 'Edit Presets',
             onPressed: () => context.push('/presets'),
           ),
@@ -244,7 +244,7 @@ class _QuickCommandsScreenState extends ConsumerState<QuickCommandsScreen> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             itemCount: presets.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
               final preset = presets[index];
               return _buildPresetChip(preset, profiles);
@@ -561,14 +561,14 @@ class _QuickCommandsScreenState extends ConsumerState<QuickCommandsScreen> {
                               ],
                             ),
                           ),
-                          PopupMenuItem(
+                          const PopupMenuItem(
                             value: 'delete',
                             child: Row(
                               children: [
-                                const Icon(Icons.delete_outline_rounded,
+                                Icon(Icons.delete_outline_rounded,
                                     size: 18, color: Colors.red),
-                                const SizedBox(width: 12),
-                                const Text('Delete'),
+                                SizedBox(width: 12),
+                                Text('Delete'),
                               ],
                             ),
                           ),
@@ -762,7 +762,7 @@ class _QuickCommandsScreenState extends ConsumerState<QuickCommandsScreen> {
   ) async {
     final sshService = ref.read(sshServiceProvider);
 
-    var sock;
+    TailscaleSSHSocket? sock;
     String? privateKey;
     if (profile.keyId != null) {
       privateKey =
@@ -772,8 +772,10 @@ class _QuickCommandsScreenState extends ConsumerState<QuickCommandsScreen> {
     try {
       if (profile.connectionMethod == ConnectionMethod.tailscale) {
         var ts = ref.read(tailscaleServiceProvider);
-        var conn = await ts.dial(profile.host, profile.port, timeout: Duration(seconds: 10));
+        var conn = await ts.dial(profile.host, profile.port, timeout: const Duration(seconds: 10));
         sock = TailscaleSSHSocket(conn);
+      } else {
+        sock = null;
       }
       await sshService.connect(
         profile: profile,
@@ -880,7 +882,7 @@ class _QuickCommandsScreenState extends ConsumerState<QuickCommandsScreen> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String?>(
-                    value: selectedProfileId,
+                    initialValue: selectedProfileId,
                     decoration: const InputDecoration(
                       labelText: 'Target Profile',
                       prefixIcon: Icon(Icons.router_rounded),

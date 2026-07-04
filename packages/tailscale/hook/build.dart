@@ -58,7 +58,7 @@ void main(List<String> args) async {
       'CGO_ENABLED': '1',
       // Disable raw disco to avoid permission errors on Android/Linux.
       'TS_ENABLE_RAW_DISCO': 'false',
-      'GOCACHE': Platform.environment['GOCACHE'] ?? (Platform.environment['LOCALAPPDATA'] != null ? Platform.environment['LOCALAPPDATA']! + '\\go-build' : 'C:\\Users\\UZNIR\\AppData\\Local\\go-build'),
+      'GOCACHE': Platform.environment['GOCACHE'] ?? (Platform.environment['LOCALAPPDATA'] != null ? '${Platform.environment['LOCALAPPDATA']!}\\go-build' : 'C:\\Users\\UZNIR\\AppData\\Local\\go-build'),
     };
 
     // Build flags

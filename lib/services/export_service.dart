@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
 import '../models/connection_profile.dart';
@@ -57,12 +57,12 @@ class ExportService {
     try {
       data = jsonDecode(json) as Map<String, dynamic>;
     } catch (e) {
-      return ImportResult(success: false, message: 'Invalid JSON: ');
+      return const ImportResult(success: false, message: 'Invalid JSON: ');
     }
 
     final version = data['version'] as int?;
     if (version == null || version < 1 || version > _currentVersion) {
-      return ImportResult(
+      return const ImportResult(
         success: false,
         message: 'Unsupported format version: ',
       );
