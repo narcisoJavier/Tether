@@ -55,7 +55,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     });
   }
 
-  void _loadExistingProfile() {
+  Future<void> _loadExistingProfile() async {
     final storage = ref.read(profileStorageProvider);
     _existingProfile = storage.getProfile(widget.profileId!);
     if (_existingProfile == null) {
@@ -72,10 +72,17 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       _selectedKeyId = _existingProfile!.keyId;
       _colorIndex = _existingProfile!.colorIndex;
       _connectionMethod = _existingProfile!.connectionMethod;
-      if (_existingProfile!.password != null) {
-        _passwordController.text = _existingProfile!.password!;
-      }
     });
+
+    // Load password from secure storage (falls back to legacy Hive field).
+    final stored = await ref
+        .read(profileStorageProvider)
+        .getPassword(_existingProfile!.id);
+    final legacyPassword = _existingProfile!.password;
+    final effectivePassword = stored ?? legacyPassword;
+    if (effectivePassword != null && effectivePassword.isNotEmpty && mounted) {
+      setState(() => _passwordController.text = effectivePassword);
+    }
   }
 
   Future<void> _loadAuthKey() async {
@@ -473,7 +480,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
 
     try {
       final profile = _buildProfile();
-      final sshService = ref.read(sshServiceProvider);
+      final sshService = ref.read(sshServiceProvider('_test_${profile.id}'));
 
       TailscaleSSHSocket? sock;
       if (_connectionMethod == ConnectionMethod.tailscale) {
@@ -543,6 +550,14 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     final storage = ref.read(profileStorageProvider);
     await storage.saveProfile(profile);
 
+    // Store password in secure storage (Keystore) instead of Hive.
+    if (_passwordController.text.isNotEmpty) {
+      await storage.savePassword(profile.id, _passwordController.text);
+    } else {
+      // Clear password from secure storage if user blanked the field.
+      await storage.deletePassword(profile.id);
+    }
+
     if (profile.connectionMethod == ConnectionMethod.tailscale &&
         _authKeyController.text.trim().isNotEmpty) {
       final ts = ref.read(tailscaleServiceProvider);
@@ -571,9 +586,8 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       port: int.parse(_portController.text.trim()),
       username: _usernameController.text.trim(),
       authType: _authType,
-      password: _passwordController.text.isNotEmpty
-          ? _passwordController.text
-          : null,
+      // Password is now stored in secure storage, not in the Hive profile.
+      password: null,
       keyId: _selectedKeyId,
       colorIndex: _colorIndex,
       connectionMethod: _connectionMethod,
@@ -605,6 +619,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
 
     if (confirm == true) {
       final storage = ref.read(profileStorageProvider);
+      await storage.deletePassword(widget.profileId!);
       await storage.deleteProfile(widget.profileId!);
       if (mounted) context.pop();
     }

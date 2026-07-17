@@ -1,4 +1,4 @@
-﻿import 'dart:ui';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -38,7 +38,7 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
   }
 
   Future<void> _connect() async {
-    final sshService = ref.read(sshServiceProvider);
+    final sshService = ref.read(sshServiceProvider(widget.profileId));
     final client = sshService.client;
     if (client == null) {
       setState(() {

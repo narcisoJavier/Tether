@@ -760,7 +760,7 @@ class _QuickCommandsScreenState extends ConsumerState<QuickCommandsScreen> {
     QuickCommand cmd,
     ConnectionProfile profile,
   ) async {
-    final sshService = ref.read(sshServiceProvider);
+    final sshService = ref.read(sshServiceProvider(profile.id));
 
     TailscaleSSHSocket? sock;
     String? privateKey;
@@ -777,10 +777,15 @@ class _QuickCommandsScreenState extends ConsumerState<QuickCommandsScreen> {
       } else {
         sock = null;
       }
+      // Retrieve password from secure storage (falls back to legacy field).
+      final securePassword =
+          await ref.read(profileStorageProvider).getPassword(profile.id);
+      final effectivePassword = securePassword ?? profile.password;
+
       await sshService.connect(
         profile: profile,
         privateKey: privateKey,
-        password: profile.password,
+        password: effectivePassword,
         socket: sock,
       );
       final output = await sshService.executeCommand(cmd.command);

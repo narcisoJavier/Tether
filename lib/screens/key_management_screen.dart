@@ -264,6 +264,7 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
 
     if (label == null || label.trim().isEmpty) return;
 
+    if (!mounted) return;
     final pemContent = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(

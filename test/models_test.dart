@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:opa/models/connection_profile.dart';
 import 'package:opa/models/quick_command.dart';
 import 'package:opa/models/stored_key_pair.dart';
+import 'package:opa/models/tunnel_config.dart';
 
 void main() {
   group('ConnectionProfile', () {
@@ -104,6 +105,51 @@ void main() {
       final updated = p.copyWith(lastConnectionSuccess: true);
       expect(updated.lastConnectionSuccess, true);
     });
+
+    test('defaults: empty tunnels list', () {
+      final p = makeProfile();
+      expect(p.tunnels, isEmpty);
+    });
+
+    test('copyWith preserves tunnels when not specified', () {
+      final tunnels = [
+        TunnelConfig(
+          id: 'tun-1',
+          label: 'DB',
+          type: TunnelType.local,
+          localPort: 3306,
+          remoteHost: 'db',
+          remotePort: 3306,
+        ),
+      ];
+      final p = ConnectionProfile(
+        id: 'p',
+        label: 'l',
+        host: 'h',
+        port: 22,
+        username: 'u',
+        authType: AuthType.password,
+        tunnels: tunnels,
+      );
+      final updated = p.copyWith(label: 'new');
+      expect(updated.tunnels.length, 1);
+      expect(updated.tunnels[0].id, 'tun-1');
+    });
+
+    test('copyWith can replace tunnels', () {
+      final p = makeProfile();
+      final newTunnels = [
+        TunnelConfig(
+          id: 'tun-new',
+          label: 'New',
+          type: TunnelType.dynamicSocks5,
+          localPort: 1080,
+        ),
+      ];
+      final updated = p.copyWith(tunnels: newTunnels);
+      expect(updated.tunnels.length, 1);
+      expect(updated.tunnels[0].type, TunnelType.dynamicSocks5);
+    });
   });
 
   group('StoredKeyPair', () {
@@ -187,6 +233,91 @@ void main() {
       );
       final updated = c.copyWith(label: 'new');
       expect(updated.createdAt, fixed);
+    });
+  });
+
+  group('TunnelConfig', () {
+    test('defaults: localhost, port 0, enabled', () {
+      final t = TunnelConfig(
+        id: 't1',
+        label: 'Test',
+        type: TunnelType.local,
+      );
+      expect(t.localPort, 0);
+      expect(t.remoteHost, 'localhost');
+      expect(t.remotePort, 0);
+      expect(t.enabled, true);
+    });
+
+    test('displayString for local forward', () {
+      final t = TunnelConfig(
+        id: 't',
+        label: 'L',
+        type: TunnelType.local,
+        localPort: 8080,
+        remoteHost: 'db',
+        remotePort: 3306,
+      );
+      expect(t.displayString, 'L:8080 → db:3306');
+    });
+
+    test('displayString for remote forward', () {
+      final t = TunnelConfig(
+        id: 't',
+        label: 'L',
+        type: TunnelType.remote,
+        localPort: 8080,
+        remoteHost: 'web',
+        remotePort: 80,
+      );
+      expect(t.displayString, 'R:80 → web:8080');
+    });
+
+    test('displayString for dynamic SOCKS5', () {
+      final t = TunnelConfig(
+        id: 't',
+        label: 'L',
+        type: TunnelType.dynamicSocks5,
+        localPort: 1080,
+      );
+      expect(t.displayString, 'D:1080 (SOCKS5)');
+    });
+
+    test('typeLabel returns correct strings', () {
+      expect(
+        TunnelConfig(id: 't', label: 'l', type: TunnelType.local).typeLabel,
+        'Local',
+      );
+      expect(
+        TunnelConfig(id: 't', label: 'l', type: TunnelType.remote).typeLabel,
+        'Remote',
+      );
+      expect(
+        TunnelConfig(id: 't', label: 'l', type: TunnelType.dynamicSocks5).typeLabel,
+        'SOCKS5',
+      );
+    });
+
+    test('copyWith updates specified fields', () {
+      final t = TunnelConfig(
+        id: 't1',
+        label: 'Original',
+        type: TunnelType.local,
+        localPort: 8080,
+        remoteHost: 'db',
+        remotePort: 3306,
+        enabled: true,
+      );
+      final updated = t.copyWith(
+        label: 'Updated',
+        localPort: 9090,
+        enabled: false,
+      );
+      expect(updated.id, 't1'); // unchanged
+      expect(updated.label, 'Updated');
+      expect(updated.localPort, 9090);
+      expect(updated.remoteHost, 'db'); // unchanged
+      expect(updated.enabled, false);
     });
   });
 }

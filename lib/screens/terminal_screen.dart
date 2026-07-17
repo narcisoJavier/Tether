@@ -79,7 +79,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen>
       if (_shellStarted) {
         if (width > 0 && height > 0) {
           ref
-              .read(sshServiceProvider)
+              .read(sshServiceProvider(widget.profileId))
               .resizeShell(
                 cols: width,
                 rows: height,
@@ -102,7 +102,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen>
     WidgetsBinding.instance.removeObserver(this);
     _restoreSystemUI();
     _stdoutSub?.cancel();
-    ref.read(sshServiceProvider).disconnect();
+    ref.read(sshServiceProvider(widget.profileId)).disconnect();
     super.dispose();
   }
 
@@ -167,7 +167,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen>
         throw StateError('Profile not found: ${widget.profileId}');
       }
 
-      final sshService = ref.read(sshServiceProvider);
+      final sshService = ref.read(sshServiceProvider(widget.profileId));
 
       TailscaleSSHSocket? sock;
       if (profile.connectionMethod == ConnectionMethod.tailscale) {
@@ -184,16 +184,31 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen>
             await ref.read(keyServiceProvider).getPrivateKey(profile.keyId!);
       }
 
+      // Retrieve password from secure storage (migrated from Hive).
+      // Falls back to profile.password for profiles not yet migrated.
+      final securePassword =
+          await ref.read(profileStorageProvider).getPassword(profile.id);
+      final effectivePassword = securePassword ?? profile.password;
+
       await sshService.connect(
         profile: profile,
         privateKey: privateKey,
-        password: profile.password,
+        password: effectivePassword,
         keepalive: Duration(seconds: ref.read(terminalKeepaliveProvider)),
         socket: sock,
       );
 
       _terminal.write(
           '\x1b[32m✓ Connected to ${profile.displayName}\x1b[0m\r\n\r\n');
+
+      // Auto-start enabled tunnels (if any configured on this profile).
+      if (profile.tunnels.isNotEmpty) {
+        final tunnelCount = await sshService.autoStartTunnels(profile.tunnels);
+        if (tunnelCount > 0) {
+          _terminal.write(
+              '\x1b[36m⇌ $tunnelCount tunnel(s) auto-started\x1b[0m\r\n\r\n');
+        }
+      }
 
       setState(() {
         _isConnected = true;
@@ -239,7 +254,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen>
   }
 
   Future<void> _startShell(int cols, int rows) async {
-    final sshService = ref.read(sshServiceProvider);
+    final sshService = ref.read(sshServiceProvider(widget.profileId));
 
     // Estimate pixel dimensions from the font size so TUIs that rely on
     // pixel-based layout get reasonable values.
@@ -314,7 +329,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen>
   }
 
   void _disconnect() async {
-    await ref.read(sshServiceProvider).disconnect();
+    await ref.read(sshServiceProvider(widget.profileId)).disconnect();
     _stdoutSub?.cancel();
     _stdoutSub = null;
     _shellStarted = false;

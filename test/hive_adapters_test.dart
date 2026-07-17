@@ -6,6 +6,7 @@ import 'package:hive/src/registry/type_registry_impl.dart';
 import 'package:opa/models/connection_profile.dart';
 import 'package:opa/models/quick_command.dart';
 import 'package:opa/models/stored_key_pair.dart';
+import 'package:opa/models/tunnel_config.dart';
 import 'package:opa/services/hive_adapters.dart';
 
 void main() {
@@ -185,11 +186,165 @@ void main() {
   });
 
   group('registerHiveAdapters', () {
-    test('registers all three adapters (idempotent)', () {
+    test('registers all four adapters (idempotent)', () {
       registerHiveAdapters();
       expect(Hive.isAdapterRegistered(0), isTrue);
       expect(Hive.isAdapterRegistered(1), isTrue);
       expect(Hive.isAdapterRegistered(2), isTrue);
+      expect(Hive.isAdapterRegistered(3), isTrue);
+    });
+  });
+
+  group('TunnelConfigAdapter', () {
+    test('round-trips a local forward tunnel', () {
+      final original = TunnelConfig(
+        id: 'tun-1',
+        label: 'MySQL Local',
+        type: TunnelType.local,
+        localPort: 3306,
+        remoteHost: 'db.internal',
+        remotePort: 3306,
+        enabled: true,
+      );
+
+      final restored = _roundTrip(original, TunnelConfigAdapter());
+
+      expect(restored.id, 'tun-1');
+      expect(restored.label, 'MySQL Local');
+      expect(restored.type, TunnelType.local);
+      expect(restored.localPort, 3306);
+      expect(restored.remoteHost, 'db.internal');
+      expect(restored.remotePort, 3306);
+      expect(restored.enabled, true);
+    });
+
+    test('round-trips a remote forward tunnel', () {
+      final original = TunnelConfig(
+        id: 'tun-2',
+        label: 'Web Remote',
+        type: TunnelType.remote,
+        localPort: 8080,
+        remoteHost: 'localhost',
+        remotePort: 80,
+        enabled: false,
+      );
+
+      final restored = _roundTrip(original, TunnelConfigAdapter());
+
+      expect(restored.type, TunnelType.remote);
+      expect(restored.enabled, false);
+      expect(restored.localPort, 8080);
+      expect(restored.remotePort, 80);
+    });
+
+    test('round-trips a dynamic SOCKS5 tunnel', () {
+      final original = TunnelConfig(
+        id: 'tun-3',
+        label: 'SOCKS Proxy',
+        type: TunnelType.dynamicSocks5,
+        localPort: 1080,
+      );
+
+      final restored = _roundTrip(original, TunnelConfigAdapter());
+
+      expect(restored.type, TunnelType.dynamicSocks5);
+      expect(restored.localPort, 1080);
+    });
+
+    test('round-trips all TunnelType enum values', () {
+      for (final type in TunnelType.values) {
+        final original = TunnelConfig(
+          id: 'type-test',
+          label: 'L',
+          type: type,
+        );
+        final restored = _roundTrip(original, TunnelConfigAdapter());
+        expect(restored.type, type);
+      }
+    });
+
+    test('typeId is 3', () {
+      expect(TunnelConfigAdapter().typeId, 3);
+    });
+  });
+
+  group('ConnectionProfileAdapter with tunnels', () {
+    test('round-trips a profile with tunnels', () {
+      final original = ConnectionProfile(
+        id: 'profile-tun',
+        label: 'Tunnel Test',
+        host: '10.0.0.1',
+        port: 22,
+        username: 'admin',
+        authType: AuthType.publicKey,
+        tunnels: [
+          TunnelConfig(
+            id: 'tun-a',
+            label: 'DB',
+            type: TunnelType.local,
+            localPort: 5432,
+            remoteHost: 'db.internal',
+            remotePort: 5432,
+          ),
+          TunnelConfig(
+            id: 'tun-b',
+            label: 'SOCKS',
+            type: TunnelType.dynamicSocks5,
+            localPort: 1080,
+          ),
+        ],
+      );
+
+      // For profiles with tunnels, we need a registry with both adapters.
+      final registry = TypeRegistryImpl();
+      final profileAdapter = ConnectionProfileAdapter();
+      final tunnelAdapter = TunnelConfigAdapter();
+      registry.registerAdapter(profileAdapter, internal: true);
+      registry.registerAdapter(tunnelAdapter, internal: true);
+
+      final writer = BinaryWriterImpl(registry);
+      writer.writeByte(profileAdapter.typeId);
+      profileAdapter.write(writer, original);
+      final bytes = writer.toBytes();
+
+      final reader = BinaryReaderImpl(bytes, registry);
+      reader.readByte();
+      final restored = profileAdapter.read(reader);
+
+      expect(restored.tunnels.length, 2);
+      expect(restored.tunnels[0].id, 'tun-a');
+      expect(restored.tunnels[0].type, TunnelType.local);
+      expect(restored.tunnels[0].localPort, 5432);
+      expect(restored.tunnels[1].id, 'tun-b');
+      expect(restored.tunnels[1].type, TunnelType.dynamicSocks5);
+    });
+
+    test('round-trips a profile with empty tunnels list', () {
+      final original = ConnectionProfile(
+        id: 'no-tun',
+        label: 'No Tunnels',
+        host: 'h',
+        port: 22,
+        username: 'u',
+        authType: AuthType.password,
+      );
+
+      final registry = TypeRegistryImpl();
+      final profileAdapter = ConnectionProfileAdapter();
+      final tunnelAdapter = TunnelConfigAdapter();
+      registry.registerAdapter(profileAdapter, internal: true);
+      registry.registerAdapter(tunnelAdapter, internal: true);
+
+      final writer = BinaryWriterImpl(registry);
+      writer.writeByte(profileAdapter.typeId);
+      profileAdapter.write(writer, original);
+      final bytes = writer.toBytes();
+
+      final reader = BinaryReaderImpl(bytes, registry);
+      reader.readByte();
+      final restored = profileAdapter.read(reader);
+
+      expect(restored.tunnels, isEmpty);
     });
   });
 }

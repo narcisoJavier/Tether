@@ -56,9 +56,47 @@ class AppConstants {
   static const double keyboardBarHeightPortrait = 44.0;
   static const double keyboardBarHeightLandscape = 36.0;
 
-  // App color palette
-  static const Color primaryGreen = Color(0xFF00E676);
-  static const Color surfaceDark = Color(0xFF1A1A2E);
-  static const Color backgroundDark = Color(0xFF0F0F1A);
-  static const Color inputFill = Color(0xFF16213E);
+  // ── Design System Colors ──────────────────────────────────────────────────
+  // Deep-space dark theme: layered midnight navy surfaces with neon green accent.
+
+  /// Primary neon green accent — used for active states, CTAs, glow.
+  static const Color primaryGreen = Color(0xFF00E5A0);
+
+  /// Brighter green used for glows and focus rings.
+  static const Color primaryGreenGlow = Color(0xFF00FFB2);
+
+  /// True darkest background — the canvas behind everything.
+  static const Color bgDeep = Color(0xFF06080F);
+
+  /// Main scaffold background — slightly lifted from bgDeep.
+  static const Color bgBase = Color(0xFF090C15);
+
+  /// Card/surface layer 1 (lowest).
+  static const Color surface0 = Color(0xFF0D1221);
+
+  /// Card/surface layer 2 — main cards and tiles.
+  static const Color surface1 = Color(0xFF111827);
+
+  /// Card/surface layer 3 — modals, sheets, elevated containers.
+  static const Color surface2 = Color(0xFF161E30);
+
+  /// Border/divider — ultra-subtle white.
+  static const Color border0 = Color(0x0FFFFFFF); // 6% white
+  static const Color border1 = Color(0x18FFFFFF); // 9% white — for hover/active
+
+  /// Semantic accent: electric blue — secondary calls to action.
+  static const Color accentBlue = Color(0xFF2979FF);
+
+  /// Semantic accent: amber — warnings, config actions.
+  static const Color accentAmber = Color(0xFFFFAB40);
+
+  /// Semantic accent: purple — premium/power features.
+  static const Color accentPurple = Color(0xFF9C6FFF);
+
+  /// Input field fill.
+  static const Color inputFill = Color(0xFF0D1425);
+
+  // ── Legacy aliases (kept for backward compatibility) ──────────────────────
+  static const Color surfaceDark = surface1;
+  static const Color backgroundDark = bgBase;
 }

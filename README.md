@@ -15,37 +15,24 @@
 
 ---
 
-## The Story
+## What's New — v0.4
 
-It starts the same way every time.
+### Port Forwarding & Tunnels
+Fully integrated SSH tunneling support. Set up Local, Remote, and Dynamic (SOCKS5) port forwarding directly from the new **Tunnels** screen. Tunnels can be set to auto-start when the connection opens, allowing seamless background networking.
 
-You're away from your desk — couch, commute, cafe — and something breaks on the server. A deploy stalled. A process OOM'd. A log you need to grep. You reach for your phone... and then the dance begins.
+### Premium "Deep Space" Redesign
+The entire app has been redesigned with a premium aesthetic featuring layered midnight navy surfaces, glowing neon accents, and frosted glass components. The new `ConnectionTile` is taller, more legible, and features a smooth swipe-to-reveal action menu.
 
-Find the SSH client. Type the host. Type the port. Type the username. Pray you remember the password or have a key handy. Wait for it to connect. And then you're staring at a tiny terminal with a keyboard that eats half the screen, fighting autocorrect on every grep flag.
-
-There had to be a better way.
-
-OPA was born from that frustration. Not another terminal emulator — a pocket operations center that makes connecting to any machine feel as natural as opening an app. One tap. Full terminal. Your keys, your commands, your presets — all there, all secure, all offline.
-
-No VPN required. No cloud dependency. No subscription. Just SSH, done right.
+### Enhanced Security
+Passwords are now stored exclusively in the hardware-backed Android Keystore alongside private keys, completing the migration away from plaintext local storage. The biometric lock has also been rewritten at the routing layer for instant, secure enforcement.
 
 ---
 
-## What's New — v0.3
+## Previous Versions
 
-### Swipe-to-Reveal Actions
-Connection cards are gone. Compact **swipeable tiles** take their place — swipe left on any connection to reveal instant-action buttons: **SFTP**, **Config**, and **QCMD** (Quick Commands). Tap goes straight to terminal — no more extra screens between you and your shell.
-
-### Built-in Tailscale Networking
-OPA now embeds Tailscale userspace networking directly — no separate app, no VPN profile. Join your tailnet from inside OPA, discover peers by MagicDNS, and connect over encrypted WireGuard tunnels. Your servers don't need public IPs.
-
-### Embedded Native Engine
-The Go-based Tailscale runtime (tsnet) compiles alongside the app — one APK, zero external dependencies.
-
-### Secure by Default
-Private keys live in Android Keystore, passwords in local Hive, biometric lock available. Zero telemetry, zero cloud sync.
-
----
+### v0.3
+- **Swipe-to-Reveal Actions**: Compact swipeable tiles for instant SFTP, Config, and Quick Commands.
+- **Built-in Tailscale**: Embedded tsnet networking. Join your tailnet from inside OPA without a separate VPN app.
 
 ## How It Works
 

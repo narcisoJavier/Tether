@@ -2,18 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../services/onboarding_service.dart';
-import '../screens/home_screen.dart';
-import '../screens/onboarding_screen.dart';
-import '../screens/settings_screen.dart';
-import '../screens/terminal_screen.dart';
-import '../screens/profile_editor_screen.dart';
-import '../screens/key_management_screen.dart';
-import '../screens/quick_commands_screen.dart';
-import '../screens/sftp_screen.dart';
-import '../screens/preset_editor_screen.dart';
+import 'services/biometric_provider.dart';
+import 'services/onboarding_service.dart';
+import 'screens/home_screen.dart';
+import 'screens/lock_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'screens/settings_screen.dart';
+import 'screens/terminal_screen.dart';
+import 'screens/profile_editor_screen.dart';
+import 'screens/key_management_screen.dart';
+import 'screens/quick_commands_screen.dart';
+import 'screens/sftp_screen.dart';
+import 'screens/preset_editor_screen.dart';
+import 'screens/tunnel_screen.dart';
+import 'screens/welcome_back_screen.dart';
 
-/// Top-level route paths.
+/// Top-level navigator key.
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 /// Custom page transition — slide from right with fade.
@@ -47,106 +51,171 @@ CustomTransitionPage<void> _buildTransitionPage({
   );
 }
 
+/// Listenable that fires when any of the auth-related Riverpod providers change.
+///
+/// GoRouter watches this to re-run its redirect without recreating the router
+/// (which would crash due to GlobalKey reuse).
+class _AuthRefreshListenable extends ChangeNotifier {
+  _AuthRefreshListenable(Ref ref) {
+    // Listen to biometric lock toggle and auth session state.
+    // When either changes, notify GoRouter to re-evaluate redirects.
+    ref.listen(biometricLockEnabledProvider, (_, _) => notifyListeners());
+    ref.listen(authSessionProvider, (_, _) => notifyListeners());
+  }
+}
+
 /// GoRouter configuration for OPA.
-final goRouter = GoRouter(
-  navigatorKey: _rootNavigatorKey,
-  initialLocation: '/',
-  redirect: (context, state) {
-    final onboardingService =
-        ProviderScope.containerOf(context).read(onboardingServiceProvider);
-    final isComplete = onboardingService.isOnboardingComplete();
-    final isOnboardingRoute = state.matchedLocation == '/onboarding';
+///
+/// Uses [refreshListenable] to re-evaluate redirects when biometric state
+/// changes, rather than creating a new GoRouter instance (which would crash
+/// with GlobalKey duplication).
+final appRouterProvider = Provider<GoRouter>((ref) {
+  final refreshListenable = _AuthRefreshListenable(ref);
 
-    if (!isComplete && !isOnboardingRoute) {
-      return '/onboarding';
-    }
-    if (isComplete && isOnboardingRoute) {
-      return '/';
-    }
-    return null;
-  },
-  routes: [
-    GoRoute(
-      path: '/onboarding',
-      pageBuilder: (context, state) => _buildTransitionPage(
-        child: const OnboardingScreen(),
-        state: state,
-      ),
-    ),
-    GoRoute(
-      path: '/',
-      pageBuilder: (context, state) => _buildTransitionPage(
-        child: const HomeScreen(),
-        state: state,
-      ),
-    ),
-    GoRoute(
-      path: '/terminal/:profileId',
-      pageBuilder: (context, state) {
-        final profileId = state.pathParameters['profileId']!;
-        return _buildTransitionPage(
-          child: TerminalScreen(profileId: profileId),
-          state: state,
-        );
-      },
-    ),
-    GoRoute(
-      path: '/sftp/:profileId',
-      pageBuilder: (context, state) {
-        final profileId = state.pathParameters['profileId']!;
-        return _buildTransitionPage(
-          child: SftpScreen(profileId: profileId),
-          state: state,
-        );
-      },
-    ),
-    GoRoute(
-      path: '/profile/new',
-      pageBuilder: (context, state) => _buildTransitionPage(
-        child: const ProfileEditorScreen(),
-        state: state,
-      ),
-    ),
-    GoRoute(
-      path: '/profile/:profileId',
-      pageBuilder: (context, state) {
-        final profileId = state.pathParameters['profileId']!;
-        return _buildTransitionPage(
-          child: ProfileEditorScreen(profileId: profileId),
-          state: state,
-        );
-      },
-    ),
-    GoRoute(
-      path: '/keys',
-      pageBuilder: (context, state) => _buildTransitionPage(
-        child: const KeyManagementScreen(),
-        state: state,
-      ),
-    ),
-    GoRoute(
-      path: '/commands',
-      pageBuilder: (context, state) => _buildTransitionPage(
-        child: const QuickCommandsScreen(),
-        state: state,
-      ),
-    ),
-    GoRoute(
-      path: '/presets',
-      pageBuilder: (context, state) => _buildTransitionPage(
-        child: const PresetEditorScreen(),
-        state: state,
-      ),
-    ),
-    GoRoute(
-      path: '/settings',
-      pageBuilder: (context, state) => _buildTransitionPage(
-        child: const SettingsScreen(),
-        state: state,
-      ),
-    ),
-  ],
-);
+  return GoRouter(
+    navigatorKey: _rootNavigatorKey,
+    initialLocation: '/',
+    refreshListenable: refreshListenable,
+    redirect: (context, state) {
+      final container = ProviderScope.containerOf(context);
+      final onboardingService = container.read(onboardingServiceProvider);
+      final lockEnabled = container.read(biometricLockEnabledProvider);
+      final isAuthenticated = container.read(authSessionProvider);
+      final isComplete = onboardingService.isOnboardingComplete();
+      final isOnboardingRoute = state.matchedLocation == '/onboarding';
+      final isWelcomeRoute = state.matchedLocation == '/welcome';
+      final isLockRoute = state.matchedLocation == '/lock';
 
-/// Provider for the router.
-final appRouterProvider = Provider<GoRouter>((ref) => goRouter);
+      // First-time onboarding
+      if (!isComplete && !isOnboardingRoute) {
+        return '/onboarding';
+      }
+      if (isComplete && isOnboardingRoute) {
+        return '/';
+      }
+
+      // Biometric lock gate (route-based instead of widget-level)
+      if (lockEnabled && !isAuthenticated && !isLockRoute && !isOnboardingRoute) {
+        return '/lock';
+      }
+      if (isLockRoute && (!lockEnabled || isAuthenticated)) {
+        return '/';
+      }
+
+      // Welcome-back screen (second+ launch, if enabled)
+      if (isComplete && !isWelcomeRoute && !isLockRoute && onboardingService.shouldShowWelcomeBack()) {
+        return '/welcome';
+      }
+      if (isWelcomeRoute && !onboardingService.shouldShowWelcomeBack()) {
+        return '/';
+      }
+
+      return null;
+    },
+    routes: [
+      GoRoute(
+        path: '/lock',
+        pageBuilder: (context, state) => _buildTransitionPage(
+          child: const LockScreen(),
+          state: state,
+        ),
+      ),
+      GoRoute(
+        path: '/onboarding',
+        pageBuilder: (context, state) => _buildTransitionPage(
+          child: const OnboardingScreen(),
+          state: state,
+        ),
+      ),
+      GoRoute(
+        path: '/welcome',
+        pageBuilder: (context, state) => _buildTransitionPage(
+          child: const WelcomeBackScreen(),
+          state: state,
+        ),
+      ),
+      GoRoute(
+        path: '/',
+        pageBuilder: (context, state) => _buildTransitionPage(
+          child: const HomeScreen(),
+          state: state,
+        ),
+      ),
+      GoRoute(
+        path: '/terminal/:profileId',
+        pageBuilder: (context, state) {
+          final profileId = state.pathParameters['profileId']!;
+          return _buildTransitionPage(
+            child: TerminalScreen(profileId: profileId),
+            state: state,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/sftp/:profileId',
+        pageBuilder: (context, state) {
+          final profileId = state.pathParameters['profileId']!;
+          return _buildTransitionPage(
+            child: SftpScreen(profileId: profileId),
+            state: state,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/profile/new',
+        pageBuilder: (context, state) => _buildTransitionPage(
+          child: const ProfileEditorScreen(),
+          state: state,
+        ),
+      ),
+      GoRoute(
+        path: '/profile/:profileId',
+        pageBuilder: (context, state) {
+          final profileId = state.pathParameters['profileId']!;
+          return _buildTransitionPage(
+            child: ProfileEditorScreen(profileId: profileId),
+            state: state,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/tunnel/:profileId',
+        pageBuilder: (context, state) {
+          final profileId = state.pathParameters['profileId']!;
+          return _buildTransitionPage(
+            child: TunnelScreen(profileId: profileId),
+            state: state,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/keys',
+        pageBuilder: (context, state) => _buildTransitionPage(
+          child: const KeyManagementScreen(),
+          state: state,
+        ),
+      ),
+      GoRoute(
+        path: '/commands',
+        pageBuilder: (context, state) => _buildTransitionPage(
+          child: const QuickCommandsScreen(),
+          state: state,
+        ),
+      ),
+      GoRoute(
+        path: '/presets',
+        pageBuilder: (context, state) => _buildTransitionPage(
+          child: const PresetEditorScreen(),
+          state: state,
+        ),
+      ),
+      GoRoute(
+        path: '/settings',
+        pageBuilder: (context, state) => _buildTransitionPage(
+          child: const SettingsScreen(),
+          state: state,
+        ),
+      ),
+    ],
+  );
+});

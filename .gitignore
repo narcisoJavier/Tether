@@ -63,3 +63,5 @@ key.properties
 # OS files
 Thumbs.db
 nul
+
+*.apk

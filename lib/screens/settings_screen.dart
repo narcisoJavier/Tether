@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/biometric_provider.dart';
 import '../services/export_service.dart';
+import '../services/onboarding_service.dart';
 import '../utils/app_version.dart';
 import '../utils/constants.dart';
 import '../utils/terminal_settings_provider.dart';
@@ -30,6 +31,8 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 8),
           const SizedBox(height: 8),
           _BiometricTile(),
+          const SizedBox(height: 8),
+          _WelcomeScreenTile(),
           const SizedBox(height: 24),
           _sectionHeader('Terminal'),
           const SizedBox(height: 8),
@@ -108,6 +111,53 @@ class _BiometricTile extends ConsumerWidget {
             value: lockEnabled,
             onChanged: (_) => ref.read(biometricLockEnabledProvider.notifier).toggle(),
             activeThumbColor: AppConstants.primaryGreen,
+            inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 350.ms, curve: Curves.easeOut);
+  }
+}
+
+class _WelcomeScreenTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final onboardingService = ref.watch(onboardingServiceProvider);
+    final enabled = onboardingService.isWelcomeScreenEnabled();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppConstants.surfaceDark.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.waving_hand_rounded, size: 20, color: Color(0xFFFFAB40)),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Welcome Screen', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
+                const SizedBox(height: 2),
+                Text('Show animated screen on launch', style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.45))),
+              ],
+            ),
+          ),
+          Switch(
+            value: enabled,
+            onChanged: (value) async {
+              await onboardingService.setWelcomeScreenEnabled(value);
+            },
+            activeThumbColor: const Color(0xFFFFAB40),
             inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
           ),
         ],

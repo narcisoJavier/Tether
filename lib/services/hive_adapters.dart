@@ -3,6 +3,7 @@ import 'package:hive/hive.dart';
 import '../models/connection_profile.dart';
 import '../models/stored_key_pair.dart';
 import '../models/quick_command.dart';
+import '../models/tunnel_config.dart';
 
 /// Registers all Hive type adapters.
 ///
@@ -16,6 +17,9 @@ void registerHiveAdapters() {
   }
   if (!Hive.isAdapterRegistered(2)) {
     Hive.registerAdapter(QuickCommandAdapter());
+  }
+  if (!Hive.isAdapterRegistered(3)) {
+    Hive.registerAdapter(TunnelConfigAdapter());
   }
 }
 
@@ -41,6 +45,7 @@ class ConnectionProfileAdapter extends TypeAdapter<ConnectionProfile> {
       updatedAt: DateTime.fromMillisecondsSinceEpoch(reader.readInt()),
       lastConnectionSuccess: reader.readBool(),
       connectionMethod: _readConnectionMethod(reader),
+      tunnels: _readTunnels(reader),
     );
   }
 
@@ -59,6 +64,7 @@ class ConnectionProfileAdapter extends TypeAdapter<ConnectionProfile> {
     writer.writeInt(obj.updatedAt.millisecondsSinceEpoch);
     writer.writeBool(obj.lastConnectionSuccess);
     writer.writeByte(obj.connectionMethod.index);
+    _writeTunnels(writer, obj.tunnels);
   }
 
   /// Reads [ConnectionMethod] from a Hive binary reader with backward
@@ -73,6 +79,32 @@ class ConnectionProfileAdapter extends TypeAdapter<ConnectionProfile> {
       }
     } catch (_) {}
     return ConnectionMethod.direct;
+  }
+
+  /// Reads the tunnel list with backward compatibility for profiles saved
+  /// before tunnels existed (pre-v0.4).
+  List<TunnelConfig> _readTunnels(BinaryReader reader) {
+    try {
+      if (reader.availableBytes > 0) {
+        final count = reader.readInt();
+        final tunnels = <TunnelConfig>[];
+        final adapter = TunnelConfigAdapter();
+        for (var i = 0; i < count; i++) {
+          tunnels.add(adapter.read(reader));
+        }
+        return tunnels;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// Writes the tunnel list.
+  void _writeTunnels(BinaryWriter writer, List<TunnelConfig> tunnels) {
+    writer.writeInt(tunnels.length);
+    final adapter = TunnelConfigAdapter();
+    for (final tunnel in tunnels) {
+      adapter.write(writer, tunnel);
+    }
   }
 }
 
@@ -150,5 +182,36 @@ class QuickCommandAdapter extends TypeAdapter<QuickCommand> {
     writer.write(obj.colorIndex);
     writer.writeInt(obj.createdAt.millisecondsSinceEpoch);
     writer.write(obj.presetId);
+  }
+}
+
+// --- TunnelConfig TypeAdapter ---
+
+class TunnelConfigAdapter extends TypeAdapter<TunnelConfig> {
+  @override
+  final typeId = 3;
+
+  @override
+  TunnelConfig read(BinaryReader reader) {
+    return TunnelConfig(
+      id: reader.read() as String,
+      label: reader.read() as String,
+      type: TunnelType.values[reader.readByte()],
+      localPort: reader.readInt(),
+      remoteHost: reader.read() as String,
+      remotePort: reader.readInt(),
+      enabled: reader.readBool(),
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, TunnelConfig obj) {
+    writer.write(obj.id);
+    writer.write(obj.label);
+    writer.writeByte(obj.type.index);
+    writer.writeInt(obj.localPort);
+    writer.write(obj.remoteHost);
+    writer.writeInt(obj.remotePort);
+    writer.writeBool(obj.enabled);
   }
 }

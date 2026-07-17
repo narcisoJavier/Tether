@@ -1,5 +1,7 @@
 import 'package:hive/hive.dart';
 
+import 'tunnel_config.dart';
+
 /// Authentication method for an SSH connection.
 ///
 /// Indexed values are used by the manual Hive adapter in
@@ -38,6 +40,7 @@ class ConnectionProfile extends HiveObject {
   DateTime updatedAt;
   bool lastConnectionSuccess; // Green/red indicator on home screen
   ConnectionMethod connectionMethod; // How to reach this host
+  List<TunnelConfig> tunnels; // Port forwarding configurations
 
   ConnectionProfile({
     required this.id,
@@ -53,8 +56,10 @@ class ConnectionProfile extends HiveObject {
     DateTime? updatedAt,
     this.lastConnectionSuccess = false,
     this.connectionMethod = ConnectionMethod.direct,
+    List<TunnelConfig>? tunnels,
   })  : createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now();
+        updatedAt = updatedAt ?? DateTime.now(),
+        tunnels = tunnels ?? [];
 
   ConnectionProfile copyWith({
     String? label,
@@ -67,6 +72,7 @@ class ConnectionProfile extends HiveObject {
     int? colorIndex,
     bool? lastConnectionSuccess,
     ConnectionMethod? connectionMethod,
+    List<TunnelConfig>? tunnels,
   }) {
     return ConnectionProfile(
       id: id,
@@ -83,6 +89,7 @@ class ConnectionProfile extends HiveObject {
       lastConnectionSuccess:
           lastConnectionSuccess ?? this.lastConnectionSuccess,
       connectionMethod: connectionMethod ?? this.connectionMethod,
+      tunnels: tunnels ?? this.tunnels,
     );
   }
 

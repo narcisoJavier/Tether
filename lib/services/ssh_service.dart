@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/connection_profile.dart';
+import '../models/tunnel_config.dart';
 import '../utils/constants.dart';
 
 /// Connection state for an SSH session.
@@ -217,9 +218,272 @@ class SshService extends ChangeNotifier {
     return true;
   }
 
+  /// Auto-start all enabled tunnels from a profile's tunnel configuration.
+  ///
+  /// Called after a successful SSH connection to start tunnels marked as
+  /// enabled. Errors on individual tunnels are logged but don't prevent
+  /// other tunnels from starting.
+  Future<int> autoStartTunnels(List<TunnelConfig> tunnels) async {
+    int started = 0;
+    for (final tunnel in tunnels) {
+      if (!tunnel.enabled) continue;
+      try {
+        switch (tunnel.type) {
+          case TunnelType.local:
+            await forwardLocal(
+              tunnelId: tunnel.id,
+              localPort: tunnel.localPort,
+              remoteHost: tunnel.remoteHost,
+              remotePort: tunnel.remotePort,
+            );
+            break;
+          case TunnelType.remote:
+            await forwardRemote(
+              tunnelId: tunnel.id,
+              remotePort: tunnel.remotePort,
+              localHost: tunnel.remoteHost,
+              localPort: tunnel.localPort,
+            );
+            break;
+          case TunnelType.dynamicSocks5:
+            await dynamicSocks5(
+              tunnelId: tunnel.id,
+              localPort: tunnel.localPort,
+            );
+            break;
+        }
+        started++;
+      } catch (e) {
+        debugPrint('[TUNNEL] Auto-start failed for "${tunnel.label}": $e');
+      }
+    }
+    return started;
+  }
+
+  // --- Port Forwarding / Tunnels ---
+
+  /// Active tunnel tracking: tunnelId → ActiveTunnel.
+  final Map<String, ActiveTunnel> _activeTunnels = {};
+
+  /// Read-only view of active tunnels.
+  Map<String, ActiveTunnel> get activeTunnels =>
+      Map.unmodifiable(_activeTunnels);
+
+  /// Start a local port forward: binds localPort on localhost and tunnels
+  /// each connection to remoteHost:remotePort via the SSH session.
+  Future<ActiveTunnel> forwardLocal({
+    required String tunnelId,
+    required int localPort,
+    required String remoteHost,
+    required int remotePort,
+  }) async {
+    if (_client == null) {
+      throw StateError('Not connected. Call connect() first.');
+    }
+
+    final serverSocket = await ServerSocket.bind('localhost', localPort);
+    final subscriptions = <StreamSubscription>[];
+
+    final sub = serverSocket.listen((socket) async {
+      try {
+        final forward = await _client!.forwardLocal(remoteHost, remotePort);
+        forward.stream.cast<List<int>>().pipe(socket);
+        socket.cast<List<int>>().pipe(forward.sink);
+      } catch (e) {
+        debugPrint('[TUNNEL] Local forward connection error: $e');
+        socket.destroy();
+      }
+    });
+    subscriptions.add(sub);
+
+    final tunnel = ActiveTunnel(
+      id: tunnelId,
+      type: TunnelType.local,
+      localPort: localPort,
+      remoteHost: remoteHost,
+      remotePort: remotePort,
+      serverSocket: serverSocket,
+      subscriptions: subscriptions,
+    );
+    _activeTunnels[tunnelId] = tunnel;
+    notifyListeners();
+    return tunnel;
+  }
+
+  /// Start a remote port forward: asks the server to listen on remotePort
+  /// and tunnels connections back to localHost:localPort.
+  Future<ActiveTunnel> forwardRemote({
+    required String tunnelId,
+    required int remotePort,
+    required String localHost,
+    required int localPort,
+  }) async {
+    if (_client == null) {
+      throw StateError('Not connected. Call connect() first.');
+    }
+
+    final forward = await _client!.forwardRemote(port: remotePort);
+    if (forward == null) {
+      throw StateError('Remote forwarding rejected by server');
+    }
+
+    final subscriptions = <StreamSubscription>[];
+    final sub = forward.connections.listen((connection) async {
+      try {
+        final local = await Socket.connect(localHost, localPort);
+        connection.stream.cast<List<int>>().pipe(local);
+        local.cast<List<int>>().pipe(connection.sink);
+      } catch (e) {
+        debugPrint('[TUNNEL] Remote forward connection error: $e');
+      }
+    });
+    subscriptions.add(sub);
+
+    final tunnel = ActiveTunnel(
+      id: tunnelId,
+      type: TunnelType.remote,
+      localPort: localPort,
+      remoteHost: localHost,
+      remotePort: remotePort,
+      subscriptions: subscriptions,
+    );
+    _activeTunnels[tunnelId] = tunnel;
+    notifyListeners();
+    return tunnel;
+  }
+
+  /// Start a SOCKS5 dynamic tunnel: binds localPort on localhost and handles
+  /// SOCKS5 CONNECT requests, forwarding each to the requested host via SSH.
+  Future<ActiveTunnel> dynamicSocks5({
+    required String tunnelId,
+    required int localPort,
+  }) async {
+    if (_client == null) {
+      throw StateError('Not connected. Call connect() first.');
+    }
+
+    final serverSocket = await ServerSocket.bind('localhost', localPort);
+    final subscriptions = <StreamSubscription>[];
+
+    final sub = serverSocket.listen((socket) {
+      _handleSocks5Connection(socket);
+    });
+    subscriptions.add(sub);
+
+    final tunnel = ActiveTunnel(
+      id: tunnelId,
+      type: TunnelType.dynamicSocks5,
+      localPort: localPort,
+      remoteHost: 'dynamic',
+      remotePort: 0,
+      serverSocket: serverSocket,
+      subscriptions: subscriptions,
+    );
+    _activeTunnels[tunnelId] = tunnel;
+    notifyListeners();
+    return tunnel;
+  }
+
+  /// Minimal SOCKS5 handler: supports CONNECT only (no auth).
+  void _handleSocks5Connection(Socket socket) async {
+    try {
+      // Use StreamIterator for proper sequential reads — socket.first
+      // would create separate subscriptions that can miss data.
+      final iter = StreamIterator(socket);
+
+      // Read SOCKS5 greeting
+      if (!await iter.moveNext()) {
+        socket.destroy();
+        return;
+      }
+      final greeting = iter.current;
+      if (greeting.isEmpty || greeting[0] != 0x05) {
+        socket.destroy();
+        return;
+      }
+
+      // Reply: no auth required
+      socket.add([0x05, 0x00]);
+
+      // Read CONNECT request
+      if (!await iter.moveNext()) {
+        socket.destroy();
+        return;
+      }
+      final request = iter.current;
+      if (request.length < 4 || request[1] != 0x01) {
+        socket.add([0x05, 0x07, 0x00, 0x01, 0, 0, 0, 0, 0, 0]);
+        socket.destroy();
+        return;
+      }
+
+      String host;
+      int port;
+      final addrType = request[3];
+
+      if (addrType == 0x01) {
+        // IPv4
+        host = '${request[4]}.${request[5]}.${request[6]}.${request[7]}';
+        port = (request[8] << 8) | request[9];
+      } else if (addrType == 0x03) {
+        // Domain name
+        final len = request[4];
+        host = String.fromCharCodes(request.sublist(5, 5 + len));
+        port = (request[5 + len] << 8) | request[6 + len];
+      } else {
+        // IPv6 or unsupported
+        socket.add([0x05, 0x08, 0x00, 0x01, 0, 0, 0, 0, 0, 0]);
+        socket.destroy();
+        return;
+      }
+
+      // Cancel the iterator before piping — the pipe will take over the stream.
+      await iter.cancel();
+
+      // Forward via SSH
+      final forward = await _client!.forwardLocal(host, port);
+
+      // Reply: success
+      socket.add([0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0]);
+
+      // Pipe data bidirectionally
+      forward.stream.cast<List<int>>().pipe(socket);
+      socket.cast<List<int>>().pipe(forward.sink);
+    } catch (e) {
+      debugPrint('[TUNNEL] SOCKS5 error: $e');
+      try {
+        socket.destroy();
+      } catch (_) {}
+    }
+  }
+
+  /// Stop a specific tunnel by ID.
+  Future<void> stopTunnel(String tunnelId) async {
+    final tunnel = _activeTunnels.remove(tunnelId);
+    if (tunnel != null) {
+      await tunnel.close();
+      notifyListeners();
+    }
+  }
+
+  /// Stop all active tunnels.
+  Future<void> stopAllTunnels() async {
+    for (final tunnel in _activeTunnels.values) {
+      await tunnel.close();
+    }
+    _activeTunnels.clear();
+    notifyListeners();
+  }
+
   // --- Helpers ---
 
   Future<void> _safeClose() async {
+    // Stop all tunnels before closing the SSH connection.
+    for (final tunnel in _activeTunnels.values) {
+      await tunnel.close();
+    }
+    _activeTunnels.clear();
+
     try {
       _client?.close();
     } catch (_) {
@@ -238,7 +502,42 @@ class SshService extends ChangeNotifier {
   }
 }
 
-/// Provider for the SSH service singleton.
-final sshServiceProvider = ChangeNotifierProvider<SshService>((ref) {
+/// Represents an active, running tunnel.
+class ActiveTunnel {
+  ActiveTunnel({
+    required this.id,
+    required this.type,
+    required this.localPort,
+    required this.remoteHost,
+    required this.remotePort,
+    this.serverSocket,
+    this.subscriptions = const [],
+  });
+
+  final String id;
+  final TunnelType type;
+  final int localPort;
+  final String remoteHost;
+  final int remotePort;
+  final ServerSocket? serverSocket;
+  final List<StreamSubscription> subscriptions;
+
+  /// Close the tunnel and clean up resources.
+  Future<void> close() async {
+    for (final sub in subscriptions) {
+      await sub.cancel();
+    }
+    try {
+      await serverSocket?.close();
+    } catch (_) {}
+  }
+}
+
+/// Provider for per-session SSH service instances.
+///
+/// Each profile gets its own [SshService] keyed by `profileId`, enabling
+/// multiple independent SSH sessions. Auto-disposed when no longer watched.
+final sshServiceProvider =
+    ChangeNotifierProvider.autoDispose.family<SshService, String>((ref, profileId) {
   return SshService();
 });

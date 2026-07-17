@@ -14,6 +14,7 @@ import '../services/update_service.dart';
 import '../services/tailscale_provider.dart';
 import '../utils/constants.dart';
 import '../widgets/connection_tile.dart';
+import '../widgets/gradient_scaffold.dart';
 
 /// Main home screen showing saved connections and quick commands.
 class HomeScreen extends ConsumerStatefulWidget {
@@ -304,8 +305,9 @@ Future<void> _showAuthUrl() async {
     final profiles = storage.listProfiles();
     final commands = storage.listCommands();
 
-    return Scaffold(
-      appBar: AppBar(
+    return GradientScaffold(
+      extendBodyBehindAppBar: true,
+      appBar: GlassAppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -450,8 +452,9 @@ Future<void> _showAuthUrl() async {
                   tailscaleState: _tailscaleNodeState,
                   onTap: () => _connectTo(profile),
                   onLongPress: () => _editProfile(profile),
-                  onSftpTap: () => context.push('/sftp/${profile.id}'''),
-                  onConfigTap: () => context.push('/profile/${profile.id}'''),
+                  onSftpTap: () => context.push('/sftp/${profile.id}'),
+                  onTunnelTap: () => context.push('/tunnel/${profile.id}'),
+                  onConfigTap: () => context.push('/profile/${profile.id}'),
                   onQuickCommandsTap: () => context.push('/commands'),
                 ),
               ),

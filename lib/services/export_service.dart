@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
 import '../models/connection_profile.dart';
 import '../models/quick_command.dart';
+import '../models/tunnel_config.dart';
 import '../utils/constants.dart';
 
 /// Data envelope for export/import.
@@ -119,10 +120,12 @@ class ExportService {
       'updatedAt': p.updatedAt.toIso8601String(),
       'lastConnectionSuccess': p.lastConnectionSuccess,
       'connectionMethod': p.connectionMethod.name,
+      'tunnels': p.tunnels.map((t) => _tunnelToJson(t)).toList(),
     };
   }
 
   static ConnectionProfile _profileFromJson(Map<String, dynamic> map) {
+    final tunnelsList = map['tunnels'] as List<dynamic>?;
     return ConnectionProfile(
       id: map['id'] as String,
       label: map['label'] as String,
@@ -137,6 +140,9 @@ class ExportService {
       updatedAt: _parseDateTime(map['updatedAt']),
       lastConnectionSuccess: map['lastConnectionSuccess'] as bool? ?? false,
       connectionMethod: _parseConnectionMethod(map['connectionMethod'] as String?),
+      tunnels: tunnelsList
+          ?.map((t) => _tunnelFromJson(t as Map<String, dynamic>))
+          .toList() ?? [],
     );
   }
 
@@ -182,6 +188,38 @@ class ExportService {
   static DateTime _parseDateTime(dynamic value) {
     if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
     return DateTime.now();
+  }
+
+  static Map<String, dynamic> _tunnelToJson(TunnelConfig t) {
+    return {
+      'id': t.id,
+      'label': t.label,
+      'type': t.type.name,
+      'localPort': t.localPort,
+      'remoteHost': t.remoteHost,
+      'remotePort': t.remotePort,
+      'enabled': t.enabled,
+    };
+  }
+
+  static TunnelConfig _tunnelFromJson(Map<String, dynamic> map) {
+    return TunnelConfig(
+      id: map['id'] as String,
+      label: map['label'] as String? ?? '',
+      type: _parseTunnelType(map['type'] as String?),
+      localPort: map['localPort'] as int? ?? 0,
+      remoteHost: map['remoteHost'] as String? ?? 'localhost',
+      remotePort: map['remotePort'] as int? ?? 0,
+      enabled: map['enabled'] as bool? ?? true,
+    );
+  }
+
+  static TunnelType _parseTunnelType(String? name) {
+    if (name == null) return TunnelType.local;
+    return TunnelType.values.firstWhere(
+      (t) => t.name == name,
+      orElse: () => TunnelType.local,
+    );
   }
 }
 

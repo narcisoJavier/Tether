@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive/hive.dart';
 
 import '../models/connection_profile.dart';
@@ -9,8 +11,15 @@ import '../utils/constants.dart';
 class ProfileStorageService {
   final Box<ConnectionProfile> _profilesBox;
   final Box<QuickCommand> _commandsBox;
+  final FlutterSecureStorage _secureStorage;
 
-  ProfileStorageService(this._profilesBox, this._commandsBox);
+  ProfileStorageService(
+    this._profilesBox,
+    this._commandsBox, [
+    this._secureStorage = const FlutterSecureStorage(
+      aOptions: AndroidOptions(),
+    ),
+  ]);
 
   // --- Connection Profiles ---
 
@@ -68,6 +77,49 @@ class ProfileStorageService {
   /// Delete a quick command.
   Future<void> deleteCommand(String id) async {
     await _commandsBox.delete(id);
+  }
+
+  // --- Secure Password Storage ---
+
+  /// Retrieve a password from secure storage for the given profile ID.
+  Future<String?> getPassword(String profileId) async {
+    return _secureStorage.read(key: 'ssh_password_$profileId');
+  }
+
+  /// Store a password in secure storage for the given profile ID.
+  Future<void> savePassword(String profileId, String password) async {
+    await _secureStorage.write(
+      key: 'ssh_password_$profileId',
+      value: password,
+    );
+  }
+
+  /// Delete a password from secure storage.
+  Future<void> deletePassword(String profileId) async {
+    await _secureStorage.delete(key: 'ssh_password_$profileId');
+  }
+
+  /// One-time migration: move passwords from Hive plain-text fields to
+  /// secure storage (Android Keystore). Clears the password from Hive
+  /// after migration.
+  Future<int> migratePasswords() async {
+    int migrated = 0;
+    for (final profile in _profilesBox.values) {
+      if (profile.password != null && profile.password!.isNotEmpty) {
+        await _secureStorage.write(
+          key: 'ssh_password_${profile.id}',
+          value: profile.password!,
+        );
+        // Clear from Hive (no longer stored in plain text)
+        final updated = profile.copyWith();
+        // Manually null out the password since copyWith preserves it
+        updated.password = null;
+        await _profilesBox.put(profile.id, updated);
+        migrated++;
+        debugPrint('[PWD] Migrated password for profile ${profile.id}');
+      }
+    }
+    return migrated;
   }
 }
 
