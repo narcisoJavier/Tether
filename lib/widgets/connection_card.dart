@@ -10,14 +10,14 @@ class ProfileColors {
   ProfileColors._();
 
   static const List<Color> palette = [
-    Color(0xFF00E676), // green
-    Color(0xFF448AFF), // blue
-    Color(0xFFFF5252), // red
-    Color(0xFFFFAB40), // amber
-    Color(0xFFE040FB), // purple
-    Color(0xFF18FFFF), // cyan
-    Color(0xFFFF6E40), // deep orange
-    Color(0xFF69F0AE), // light green
+    Color(0xFF0A84FF), // Apple System Blue
+    Color(0xFFFF9F0A), // Apple System Orange
+    Color(0xFFFF453A), // Apple System Red
+    Color(0xFF30D158), // Apple System Green
+    Color(0xFFBF5AF2), // Apple System Purple
+    Color(0xFFFFD60A), // Apple System Yellow
+    Color(0xFF5E5CE6), // Apple System Indigo
+    Color(0xFF64D2FF), // Apple System Cyan
   ];
 
   static Color get(int index) => palette[index % palette.length];
