@@ -4,28 +4,16 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'utils/constants.dart';
 
-/// Premium dark theme for OPA — Deep Space aesthetic.
+/// Dark theme for OPA — Apple TUI aesthetic.
 ///
 /// Design language:
-///   • Layered midnight-navy surfaces (3 distinct depth levels)
-///   • Neon teal-green accent with bloom glow
-///   • Electric blue secondary + amber / purple semantics
+///   • OLED black canvas with iOS gray surfaces
+///   • System Blue accent (#0A84FF)
+///   • System Orange / System Purple semantics
 ///   • Inter for UI text, JetBrains Mono for code/terminal
-///   • Material 3 color scheme seeded from primary green
+///   • Material 3 color scheme seeded from System Blue
 class AppTheme {
   AppTheme._();
-
-  // ── Scaffold background gradient ──────────────────────────────────────────
-  /// Two-stop linear gradient used as the Scaffold body background.
-  /// Wraps the scaffold with a [Container] using this decoration.
-  static const LinearGradient scaffoldGradient = LinearGradient(
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-    colors: [
-      Color(0xFF0A0E1A), // deep navy at top
-      AppConstants.bgBase, // slightly lighter at bottom
-    ],
-  );
 
   static ThemeData dark() {
     // Override status bar to be transparent with light icons.
@@ -39,7 +27,7 @@ class AppTheme {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: AppConstants.primaryGreen,
       brightness: Brightness.dark,
-      primary: AppConstants.primaryGreen,
+      primary: AppConstants.primaryGreen, // System Blue
       onPrimary: Colors.black,
       secondary: AppConstants.accentBlue,
       onSecondary: Colors.white,
@@ -459,28 +447,25 @@ class GlassDecoration {
       );
 }
 
-/// Neon glow shadow — used on accent elements.
+/// Flat shadow — minimal drop shadow for elevated elements.
 class NeonGlow {
   NeonGlow._();
 
+  /// Subtle shadow at low elevation.
   static List<BoxShadow> of(Color color, {double intensity = 1.0}) => [
         BoxShadow(
-          color: color.withValues(alpha: 0.35 * intensity),
-          blurRadius: 12 * intensity,
-          spreadRadius: 0,
-        ),
-        BoxShadow(
-          color: color.withValues(alpha: 0.15 * intensity),
-          blurRadius: 24 * intensity,
-          spreadRadius: 2,
+          color: color.withValues(alpha: 0.08 * intensity),
+          blurRadius: 4 * intensity,
+          offset: const Offset(0, 2),
         ),
       ];
 
+  /// Minimal dot shadow.
   static List<BoxShadow> dot(Color color) => [
         BoxShadow(
-          color: color.withValues(alpha: 0.6),
-          blurRadius: 6,
-          spreadRadius: 1,
+          color: color.withValues(alpha: 0.3),
+          blurRadius: 3,
+          offset: const Offset(0, 1),
         ),
       ];
 }

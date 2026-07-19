@@ -181,6 +181,13 @@ class SshService extends ChangeNotifier {
     return _stdoutToString(session.stdout);
   }
 
+  /// Write raw bytes to the active shell's stdin.
+  ///
+  /// No-op when no shell session is open.
+  void writeStdin(Uint8List data) {
+    _session?.stdin.add(data);
+  }
+
   /// Resize the PTY when the terminal view changes size.
   void resizeShell({
     required int cols,

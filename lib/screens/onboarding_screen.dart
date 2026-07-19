@@ -122,7 +122,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         textStyle: GoogleFonts.inter(
                           fontSize: 16,
@@ -152,38 +152,23 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Glowing terminal icon
+            // Terminal icon
             Container(
               width: 120,
               height: 120,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppConstants.primaryGreen.withValues(alpha: 0.08),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppConstants.primaryGreen.withValues(alpha: 0.15),
-                    blurRadius: 40,
-                    spreadRadius: 8,
-                  ),
-                ],
+                border: Border.all(
+                  color: AppConstants.primaryGreen.withValues(alpha: 0.2),
+                ),
               ),
               child: const Icon(
                 Icons.terminal_rounded,
                 size: 56,
                 color: AppConstants.primaryGreen,
               ),
-            )
-                .animate(onPlay: (c) => c.repeat())
-                .shimmer(
-                  duration: 2000.ms,
-                  color: AppConstants.primaryGreen.withValues(alpha: 0.2),
-                )
-                .scale(
-                  begin: const Offset(1, 1),
-                  end: const Offset(1.03, 1.03),
-                  duration: 2000.ms,
-                  curve: Curves.easeInOutSine,
-                ),
+            ),
             const SizedBox(height: 48),
             // Title
             Text(
@@ -257,7 +242,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             _buildStepCircle(
               icon: Icons.terminal_rounded,
               label: 'Terminal',
-              color: const Color(0xFFFFAB40),
+              color: AppConstants.accentAmber,
               delay: 400.ms,
             ),
             const SizedBox(height: 48),
@@ -359,13 +344,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppConstants.primaryGreen.withValues(alpha: 0.08),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppConstants.primaryGreen.withValues(alpha: 0.1),
-                    blurRadius: 30,
-                    spreadRadius: 5,
-                  ),
-                ],
+                border: Border.all(
+                  color: AppConstants.primaryGreen.withValues(alpha: 0.2),
+                ),
               ),
               child: const Icon(
                 Icons.vpn_key_rounded,
@@ -467,19 +448,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               height: 100,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFFFFAB40).withValues(alpha: 0.08),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFFFAB40).withValues(alpha: 0.1),
-                    blurRadius: 30,
-                    spreadRadius: 5,
-                  ),
-                ],
+                color: const Color(0xFFFF9F0A).withValues(alpha: 0.08),
+                border: Border.all(
+                  color: const Color(0xFFFF9F0A).withValues(alpha: 0.2),
+                ),
               ),
               child: const Icon(
                 Icons.flash_on_rounded,
                 size: 44,
-                color: Color(0xFFFFAB40),
+                color: Color(0xFFFF9F0A),
               ),
             )
                 .animate()
@@ -524,7 +501,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 color: AppConstants.surfaceDark.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.06),
+                  color: AppConstants.border0,
                 ),
               ),
               child: Column(
@@ -545,7 +522,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         height: 6,
                         decoration: const BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Color(0xFFFFAB40),
+                          color: AppConstants.accentAmber,
                         ),
                       ),
                       const SizedBox(width: 8),

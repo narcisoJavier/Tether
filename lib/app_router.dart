@@ -8,7 +8,7 @@ import 'screens/home_screen.dart';
 import 'screens/lock_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/settings_screen.dart';
-import 'screens/terminal_screen.dart';
+import 'screens/tabbed_terminal_screen.dart';
 import 'screens/profile_editor_screen.dart';
 import 'screens/key_management_screen.dart';
 import 'screens/quick_commands_screen.dart';
@@ -57,8 +57,6 @@ CustomTransitionPage<void> _buildTransitionPage({
 /// (which would crash due to GlobalKey reuse).
 class _AuthRefreshListenable extends ChangeNotifier {
   _AuthRefreshListenable(Ref ref) {
-    // Listen to biometric lock toggle and auth session state.
-    // When either changes, notify GoRouter to re-evaluate redirects.
     ref.listen(biometricLockEnabledProvider, (_, _) => notifyListeners());
     ref.listen(authSessionProvider, (_, _) => notifyListeners());
   }
@@ -66,9 +64,9 @@ class _AuthRefreshListenable extends ChangeNotifier {
 
 /// GoRouter configuration for OPA.
 ///
-/// Uses [refreshListenable] to re-evaluate redirects when biometric state
-/// changes, rather than creating a new GoRouter instance (which would crash
-/// with GlobalKey duplication).
+/// Uses [StatefulShellRoute.indexedStack] to keep the terminal tab screen alive
+/// across navigation. The [TabbedTerminalScreen] lives in its own branch so its
+/// SSH sessions and terminal state are preserved when the user goes back home.
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshListenable = _AuthRefreshListenable(ref);
 
@@ -113,6 +111,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      // ── Full-screen routes (outside shell: lock, onboarding, welcome-back) ──
       GoRoute(
         path: '/lock',
         pageBuilder: (context, state) => _buildTransitionPage(
@@ -134,87 +133,104 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           state: state,
         ),
       ),
-      GoRoute(
-        path: '/',
-        pageBuilder: (context, state) => _buildTransitionPage(
-          child: const HomeScreen(),
-          state: state,
-        ),
-      ),
-      GoRoute(
-        path: '/terminal/:profileId',
-        pageBuilder: (context, state) {
-          final profileId = state.pathParameters['profileId']!;
-          return _buildTransitionPage(
-            child: TerminalScreen(profileId: profileId),
-            state: state,
-          );
-        },
-      ),
-      GoRoute(
-        path: '/sftp/:profileId',
-        pageBuilder: (context, state) {
-          final profileId = state.pathParameters['profileId']!;
-          return _buildTransitionPage(
-            child: SftpScreen(profileId: profileId),
-            state: state,
-          );
-        },
-      ),
-      GoRoute(
-        path: '/profile/new',
-        pageBuilder: (context, state) => _buildTransitionPage(
-          child: const ProfileEditorScreen(),
-          state: state,
-        ),
-      ),
-      GoRoute(
-        path: '/profile/:profileId',
-        pageBuilder: (context, state) {
-          final profileId = state.pathParameters['profileId']!;
-          return _buildTransitionPage(
-            child: ProfileEditorScreen(profileId: profileId),
-            state: state,
-          );
-        },
-      ),
-      GoRoute(
-        path: '/tunnel/:profileId',
-        pageBuilder: (context, state) {
-          final profileId = state.pathParameters['profileId']!;
-          return _buildTransitionPage(
-            child: TunnelScreen(profileId: profileId),
-            state: state,
-          );
-        },
-      ),
-      GoRoute(
-        path: '/keys',
-        pageBuilder: (context, state) => _buildTransitionPage(
-          child: const KeyManagementScreen(),
-          state: state,
-        ),
-      ),
-      GoRoute(
-        path: '/commands',
-        pageBuilder: (context, state) => _buildTransitionPage(
-          child: const QuickCommandsScreen(),
-          state: state,
-        ),
-      ),
-      GoRoute(
-        path: '/presets',
-        pageBuilder: (context, state) => _buildTransitionPage(
-          child: const PresetEditorScreen(),
-          state: state,
-        ),
-      ),
-      GoRoute(
-        path: '/settings',
-        pageBuilder: (context, state) => _buildTransitionPage(
-          child: const SettingsScreen(),
-          state: state,
-        ),
+
+      // ── Shell: tabbed terminal stays alive across navigation ──
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) => navigationShell,
+        branches: [
+          // Branch 0 — Home + sub-screens
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/',
+                pageBuilder: (context, state) => _buildTransitionPage(
+                  child: const HomeScreen(),
+                  state: state,
+                ),
+                routes: [
+                  GoRoute(
+                    path: 'sftp/:profileId',
+                    pageBuilder: (context, state) {
+                      final profileId = state.pathParameters['profileId']!;
+                      return _buildTransitionPage(
+                        child: SftpScreen(profileId: profileId),
+                        state: state,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'profile/new',
+                    pageBuilder: (context, state) => _buildTransitionPage(
+                      child: const ProfileEditorScreen(),
+                      state: state,
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'profile/:profileId',
+                    pageBuilder: (context, state) {
+                      final profileId = state.pathParameters['profileId']!;
+                      return _buildTransitionPage(
+                        child: ProfileEditorScreen(profileId: profileId),
+                        state: state,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'tunnel/:profileId',
+                    pageBuilder: (context, state) {
+                      final profileId = state.pathParameters['profileId']!;
+                      return _buildTransitionPage(
+                        child: TunnelScreen(profileId: profileId),
+                        state: state,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'keys',
+                    pageBuilder: (context, state) => _buildTransitionPage(
+                      child: const KeyManagementScreen(),
+                      state: state,
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'commands',
+                    pageBuilder: (context, state) => _buildTransitionPage(
+                      child: const QuickCommandsScreen(),
+                      state: state,
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'presets',
+                    pageBuilder: (context, state) => _buildTransitionPage(
+                      child: const PresetEditorScreen(),
+                      state: state,
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'settings',
+                    pageBuilder: (context, state) => _buildTransitionPage(
+                      child: const SettingsScreen(),
+                      state: state,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          // Branch 1 — Terminal (persistent across navigation)
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/terminal',
+                pageBuilder: (context, state) => _buildTransitionPage(
+                  child: const TabbedTerminalScreen(),
+                  state: state,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     ],
   );

@@ -9,11 +9,15 @@ import 'package:uuid/uuid.dart';
 
 import '../models/connection_profile.dart';
 import '../models/quick_command.dart';
+import '../models/terminal_tab.dart';
 import '../services/key_service.dart';
+import '../services/pending_quick_command_provider.dart';
 import '../services/profile_storage_service.dart';
 import '../services/ssh_service.dart';
+import '../services/tab_manager.dart';
 import '../services/tailscale_provider.dart';
 import '../services/tailscale_ssh_socket.dart';
+import '../services/terminal_tab_request_provider.dart';
 import '../utils/agent_presets.dart';
 import '../utils/constants.dart';
 import '../widgets/connection_card.dart';
@@ -612,7 +616,129 @@ class _QuickCommandsScreenState extends ConsumerState<QuickCommandsScreen> {
       return;
     }
 
+    // ── Tab picker: check if there are open terminal tabs for this profile ──
+    final openTabs = ref.read(tabManagerProvider)
+        .where((t) => t.profileId == cmd.profileId)
+        .toList();
+
+    if (openTabs.isNotEmpty) {
+      final choice = await _showTabPickerDialog(cmd, openTabs);
+      if (choice == null) return; // cancelled
+
+      if (choice == 'new_tab') {
+        // Open a new tab with the command.
+        ref.read(pendingTerminalTabProvider.notifier).state =
+            TerminalTabRequest(
+              profileId: cmd.profileId!,
+              initialCommand: '${cmd.command}\n',
+            );
+        if (mounted) context.go('/terminal');
+      } else {
+        // Send the command to the chosen existing tab.
+        ref.read(pendingQuickCommandProvider.notifier).state =
+            PendingTabCommand(tabId: choice, command: '${cmd.command}\n');
+        if (mounted) context.go('/terminal');
+      }
+      return;
+    }
+
+    // No open tabs — fall back to one-shot execution in bottom sheet.
     _showCommandOutput(cmd, profile);
+  }
+
+  /// Shows a dialog letting the user pick an existing terminal tab or open a
+  /// new one. Returns the selected tab ID, `'new_tab'`, or `null` on cancel.
+  Future<String?> _showTabPickerDialog(
+    QuickCommand cmd,
+    List<TerminalTab> openTabs,
+  ) async {
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        backgroundColor: AppConstants.surfaceDark,
+        title: Text(
+          'Send command to…',
+          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '\$ ${cmd.command}',
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 12,
+                color: Colors.white.withValues(alpha: 0.6),
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 12),
+            // Existing tabs
+            ...openTabs.map((tab) => ListTile(
+                  dense: true,
+                  leading: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: tab.isConnected
+                          ? AppConstants.primaryGreen
+                          : Colors.white.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  title: Text(
+                    tab.label,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
+                  ),
+                  subtitle: Text(
+                    tab.isConnected ? 'Connected' : 'Disconnected',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: Colors.white.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  onTap: () => Navigator.pop(ctx, tab.tabId),
+                )),
+            // New tab option
+            const Divider(color: Colors.white10),
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.add_rounded,
+                  size: 20, color: AppConstants.primaryGreen),
+              title: Text(
+                'Open new tab',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: AppConstants.primaryGreen,
+                ),
+              ),
+              subtitle: Text(
+                'Connect and send command to a fresh session',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: Colors.white.withValues(alpha: 0.4),
+                ),
+              ),
+              onTap: () => Navigator.pop(ctx, 'new_tab'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: GoogleFonts.inter()),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _showCommandOutput(

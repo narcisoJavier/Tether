@@ -10,8 +10,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/connection_profile.dart';
 import '../models/quick_command.dart';
 import '../services/profile_storage_service.dart';
-import '../services/update_service.dart';
 import '../services/tailscale_provider.dart';
+import '../services/terminal_tab_request_provider.dart';
+import '../services/update_service.dart';
 import '../utils/constants.dart';
 import '../widgets/connection_tile.dart';
 import '../widgets/gradient_scaffold.dart';
@@ -306,7 +307,7 @@ Future<void> _showAuthUrl() async {
     final commands = storage.listCommands();
 
     return GradientScaffold(
-      extendBodyBehindAppBar: true,
+      extendBodyBehindAppBar: false,
       appBar: GlassAppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -668,7 +669,10 @@ Future<void> _showAuthUrl() async {
   }
 
   void _connectTo(ConnectionProfile profile) {
-    context.push('/terminal/${profile.id}');
+    // Write the request so the persistent terminal picks it up.
+    ref.read(pendingTerminalTabProvider.notifier).state =
+        TerminalTabRequest(profileId: profile.id);
+    context.go('/terminal');
   }
 
   void _editProfile(ConnectionProfile profile) {
@@ -720,7 +724,7 @@ Future<void> _showAuthUrl() async {
         animCtrl: _menuAnimCtrl,
         index: 2,
         icon: Icons.flash_on_rounded,
-        color: const Color(0xFFFFAB40),
+        color: AppConstants.accentAmber,
         label: 'Quick Command',
         onTap: () => context.push('/commands'),
       )),
@@ -728,7 +732,7 @@ Future<void> _showAuthUrl() async {
         animCtrl: _menuAnimCtrl,
         index: 1,
         icon: Icons.vpn_key_rounded,
-        color: const Color(0xFF448AFF),
+        color: const Color(0xFF30D158),
         label: 'Generate SSH Key',
         onTap: () => context.push('/keys'),
       )),

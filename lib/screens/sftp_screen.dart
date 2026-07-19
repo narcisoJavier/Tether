@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../services/sftp_service.dart';
 import '../services/ssh_service.dart';
+import '../services/terminal_tab_request_provider.dart';
 import '../utils/constants.dart';
 
 /// Screen for browsing remote files via SFTP.
@@ -307,6 +308,12 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
     );
   }
 
+  void _openInTerminal() {
+    ref.read(pendingTerminalTabProvider.notifier).state =
+        TerminalTabRequest(profileId: widget.profileId);
+    context.go('/terminal');
+  }
+
   @override
   void dispose() {
     _sftpService.disconnect();
@@ -322,6 +329,11 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
           style: GoogleFonts.inter(fontWeight: FontWeight.w600),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.terminal_rounded),
+            tooltip: 'Open in Terminal',
+            onPressed: _openInTerminal,
+          ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Refresh',
