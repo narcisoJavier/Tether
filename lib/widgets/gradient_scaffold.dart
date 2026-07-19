@@ -1,18 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../app_theme.dart';
 import '../utils/constants.dart';
 
-/// A [Scaffold] wrapper that paints the deep-space gradient background
-/// behind all content, with optional ambient orb decorations.
+/// A [Scaffold] wrapper with OLED black background.
 ///
-/// Usage:
-/// ```dart
-/// GradientScaffold(
-///   appBar: AppBar(...),
-///   body: ...,
-/// )
-/// ```
+/// Stripped of gradient and ambient orbs for a clean Apple TUI aesthetic.
 class GradientScaffold extends StatelessWidget {
   const GradientScaffold({
     super.key,
@@ -33,7 +25,7 @@ class GradientScaffold extends StatelessWidget {
   final Widget? bottomNavigationBar;
   final bool resizeToAvoidBottomInset;
 
-  /// Whether to draw ambient gradient orbs in the background.
+  /// Kept for API compatibility — orbs are always off in TUI mode.
   final bool showOrbs;
   final bool extendBodyBehindAppBar;
 
@@ -47,72 +39,7 @@ class GradientScaffold extends StatelessWidget {
       floatingActionButton: floatingActionButton,
       floatingActionButtonLocation: floatingActionButtonLocation,
       bottomNavigationBar: bottomNavigationBar,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // ── Base gradient ────────────────────────────────────────────────
-          const DecoratedBox(decoration: BoxDecoration(gradient: AppTheme.scaffoldGradient)),
-
-          // ── Ambient orbs ─────────────────────────────────────────────────
-          if (showOrbs) ...[
-            // Top-left green orb
-            Positioned(
-              top: -120,
-              left: -80,
-              child: _Orb(
-                size: 320,
-                color: AppConstants.primaryGreen.withValues(alpha: 0.045),
-              ),
-            ),
-            // Top-right blue orb
-            Positioned(
-              top: 40,
-              right: -100,
-              child: _Orb(
-                size: 280,
-                color: AppConstants.accentBlue.withValues(alpha: 0.03),
-              ),
-            ),
-            // Bottom-center purple orb
-            Positioned(
-              bottom: -100,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: _Orb(
-                  size: 260,
-                  color: AppConstants.accentPurple.withValues(alpha: 0.025),
-                ),
-              ),
-            ),
-          ],
-
-          // ── Actual content ───────────────────────────────────────────────
-          body,
-        ],
-      ),
-    );
-  }
-}
-
-/// Blurred ambient light orb.
-class _Orb extends StatelessWidget {
-  const _Orb({required this.size, required this.color});
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return ImageFiltered(
-      imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color,
-        ),
-      ),
+      body: body,
     );
   }
 }
@@ -128,7 +55,7 @@ class GlassAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.leading,
     this.actions,
     this.bottom,
-    this.toolbarHeight = 58,
+    this.toolbarHeight = 54,
     this.blurSigma = 20,
   });
 
@@ -170,6 +97,8 @@ class GlassAppBar extends StatelessWidget implements PreferredSizeWidget {
           child: SafeArea(
             bottom: false,
             child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 SizedBox(
                   height: toolbarHeight,
