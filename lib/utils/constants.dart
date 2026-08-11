@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 class AppConstants {
   AppConstants._();
 
-  static const String appName = 'OPA';
-  static const String appFullTitle = 'OpenSSH Pocket Agent';
+  static const String appName = 'Tether';
+  static const String appFullTitle = 'Tether — Pocket SSH & Mesh Terminal';
 
   // Hive box names
   static const String profilesBox = 'connection_profiles';
@@ -13,21 +13,21 @@ class AppConstants {
   static const String commandsBox = 'quick_commands';
 
   // Secure storage keys prefix
-  static const String secureStoragePrefix = 'opa_key_';
+  static const String secureStoragePrefix = 'tether_key_';
 
   // Onboarding
-  static const String onboardingCompleteKey = 'opa_onboarding_complete';
+  static const String onboardingCompleteKey = 'tether_onboarding_complete';
 
   // Biometric lock
-  static const String biometricLockEnabledKey = 'opa_biometric_lock_enabled';
+  static const String biometricLockEnabledKey = 'tether_biometric_lock_enabled';
 
   // Tailscale
-  static const String tailscaleAuthKeyKey = 'opa_tailscale_auth_key';
+  static const String tailscaleAuthKeyKey = 'tether_tailscale_auth_key';
   static const String tailscaleStateDirName = 'tailscale-state';
 
   // GitHub repository — used for update checks via Releases API
   static const String gitHubOwner = 'narcisoJavier';
-  static const String gitHubRepo = 'OPA_Flutter';
+  static const String gitHubRepo = 'Tether';
 
   // Update check cache keys
   static const String lastUpdateCheckKey = 'opa_last_update_check_time';

@@ -22,7 +22,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace "com.opa.opa"
+    namespace "dev.tether.app"
     compileSdk flutter.compileSdkVersion
     ndkVersion flutter.ndkVersion
 
@@ -40,7 +40,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.opa.opa"
+        applicationId "dev.tether.app"
         // dartssh2 / xterm require minSdk 21+
         minSdkVersion flutter.minSdkVersion
         targetSdkVersion flutter.targetSdkVersion

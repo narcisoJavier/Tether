@@ -1,14 +1,14 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/2241812/OPA_Flutter/main/assets/icon.png" alt="OPA Logo" width="120" height="120">
+<img src="assets/logo.png" alt="Tether Logo" width="120" height="120">
 
-# ⬡ OPA — OpenSSH Pocket Agent
+# ⚡ Tether — Pocket SSH & Mesh Terminal
 
-**Your server in your pocket. One tap to connect, swipe to command, everything encrypted.**
+**Your server in your pocket. One tap to connect, multi-tab terminal, WireGuard mesh, everything encrypted.**
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.44-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.12-0175C2?logo=dart&logoColor=white)](https://dart.dev)
-[![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)](https://github.com/2241812/OPA_Flutter/releases)
+[![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)](https://github.com/narcisoJavier/Tether/releases)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 </div>

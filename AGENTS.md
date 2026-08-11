@@ -6,12 +6,12 @@
 
 ## OVERVIEW
 
-OPA — OpenSSH Pocket Agent. Flutter/Dart Android app (v0.3.0+1) for mobile SSH with embedded Tailscale networking. Pure-Dart SSH client (dartssh2) + VT100 terminal (xterm.dart) + Go FFI bridge for WireGuard tunnels.
+Tether — Pocket SSH & Mesh Terminal. Flutter/Dart Android app (v0.5.0+3) for mobile SSH with embedded Tailscale networking. Pure-Dart SSH client (dartssh2) + VT100 terminal (xterm.dart) + Go FFI bridge for WireGuard tunnels.
 
 ## STRUCTURE
 
 ```
-OPA/
+Tether/
 ├── lib/                    # Flutter app source (38 files)
 │   ├── main.dart           # Entry: Hive init, Tailscale init, Riverpod scope
 │   ├── app_router.dart     # GoRouter: 10 routes + onboarding guard

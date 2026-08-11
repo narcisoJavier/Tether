@@ -1,5 +1,5 @@
-name: opa
-description: OPA - OpenSSH Pocket Agent. A Flutter app that makes SSH connectivity effortless.
+name: tether
+description: Tether — Pocket SSH & Mesh Terminal for Mobile Developers.
 publish_to: none
 version: 0.5.0+3
 

@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:opa/utils/ssh_key_encoder.dart';
+import 'package:tether/utils/ssh_key_encoder.dart';
 
 void main() {
   group('SshKeyEncoder.generateEd25519', () {

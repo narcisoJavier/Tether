@@ -1,7 +1,7 @@
-# OPA v0.5 — Tabbed Terminal + Version Control Overhaul & Apple TUI 2.0
+# Tether v0.5 — Pocket SSH & Mesh Terminal (Apple TUI 2.0)
 
-> **LAST UPDATED**: 2026-08-11T20:54:00Z
-> **STATUS**: All tasks complete, verified clean with `dart analyze` (0 errors, 0 warnings), committed locally.
+> **LAST UPDATED**: 2026-08-12T01:59:00Z
+> **STATUS**: Official project rename to Tether complete, logo asset integrated, Apple TUI 2.0 Home Dashboard redesign applied, verified clean with `dart analyze` (0 errors, 0 warnings).
 
 ## ✅ Completed Accomplishments
 

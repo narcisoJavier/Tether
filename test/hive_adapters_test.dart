@@ -3,11 +3,11 @@ import 'package:hive/hive.dart';
 import 'package:hive/src/binary/binary_reader_impl.dart';
 import 'package:hive/src/binary/binary_writer_impl.dart';
 import 'package:hive/src/registry/type_registry_impl.dart';
-import 'package:opa/models/connection_profile.dart';
-import 'package:opa/models/quick_command.dart';
-import 'package:opa/models/stored_key_pair.dart';
-import 'package:opa/models/tunnel_config.dart';
-import 'package:opa/services/hive_adapters.dart';
+import 'package:tether/models/connection_profile.dart';
+import 'package:tether/models/quick_command.dart';
+import 'package:tether/models/stored_key_pair.dart';
+import 'package:tether/models/tunnel_config.dart';
+import 'package:tether/services/hive_adapters.dart';
 
 void main() {
   setUpAll(() {
