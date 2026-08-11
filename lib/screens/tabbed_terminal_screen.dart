@@ -1059,47 +1059,167 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     return computed.clamp(AppConstants.minFontSize, AppConstants.maxFontSize);
   }
 
-  // ── Empty state ─────────────────────────────────────────────────────────
-
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(48),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
+    final storage = ref.read(profileStorageProvider);
+    final profiles = storage.listProfiles();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          // Glow terminal icon
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppConstants.accentBlue.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppConstants.accentBlue.withValues(alpha: 0.2),
+              ),
+            ),
+            child: const Icon(
               Icons.terminal_rounded,
-              size: 64,
-              color: AppConstants.primaryGreen.withValues(alpha: 0.15),
+              size: 48,
+              color: AppConstants.accentBlue,
             ),
-            const SizedBox(height: 20),
-            Text(
-              'No terminal tabs open',
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.white.withValues(alpha: 0.45),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'No Active Terminal Sessions',
+            style: GoogleFonts.inter(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Select a server below to launch an SSH terminal tab:',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: Colors.white.withValues(alpha: 0.45),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+
+          // Primary "Open New Tab" Button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _showServerPickerModalSheet,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppConstants.accentBlue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.add_rounded, size: 20),
+              label: Text(
+                'Open Terminal Session',
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Tap a connection on the home screen to open a new tab',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: Colors.white.withValues(alpha: 0.25),
+          ),
+
+          const SizedBox(height: 28),
+
+          // Saved Connections List header
+          if (profiles.isNotEmpty) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'SAVED CONNECTIONS',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                  color: Colors.white.withValues(alpha: 0.4),
+                ),
               ),
-              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () => context.go('/'),
-              icon: const Icon(Icons.arrow_back_rounded, size: 18),
-              label: Text('Back to connections',
-                  style: GoogleFonts.inter()),
+            const SizedBox(height: 12),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: profiles.length,
+              itemBuilder: (context, index) {
+                final p = profiles[index];
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: BoxDecoration(
+                    color: AppConstants.surface0,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.06),
+                    ),
+                  ),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    leading: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppConstants.surface1,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.dns_rounded,
+                        size: 20,
+                        color: AppConstants.accentBlue,
+                      ),
+                    ),
+                    title: Text(
+                      p.label,
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${p.username}@${p.host}:${p.port}',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 12,
+                        color: Colors.white.withValues(alpha: 0.45),
+                      ),
+                    ),
+                    trailing: const Icon(
+                      Icons.play_arrow_rounded,
+                      color: AppConstants.primaryGreen,
+                      size: 24,
+                    ),
+                    onTap: () => _createTabNow(p.id),
+                  ),
+                );
+              },
             ),
           ],
-        ),
+
+          const SizedBox(height: 16),
+
+          // Return Home link
+          TextButton.icon(
+            onPressed: () => context.go('/'),
+            icon: const Icon(Icons.arrow_back_rounded, size: 16),
+            label: Text(
+              'Back to Home Dashboard',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: Colors.white.withValues(alpha: 0.4),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
