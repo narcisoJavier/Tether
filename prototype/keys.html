@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+  <title>Tether / OPA - SSH Key Manager</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700;800&display=swap"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "oled-black": "#000000",
+            "surface-0": "#1C1C1E",
+            "surface-1": "#2C2C2E",
+            "accent-blue": "#0A84FF",
+            "pip-success": "#32D74B"
+          },
+          fontFamily: {
+            mono: ["JetBrains Mono", "monospace"],
+            sans: ["Hanken Grotesk", "sans-serif"]
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body { background-color: #000000; color: #E0E2ED; font-family: 'Hanken Grotesk', sans-serif; }
+  </style>
+</head>
+<body class="bg-oled-black min-h-screen p-4 flex flex-col gap-4">
+  
+  <header class="flex items-center justify-between py-2">
+    <h1 class="text-xl font-bold text-white flex items-center gap-2">
+      <span class="material-symbols-outlined text-accent-blue">key</span> SSH Key Manager
+    </h1>
+    <button class="px-3 py-1.5 rounded-lg bg-accent-blue text-white text-xs font-semibold flex items-center gap-1">
+      <span class="material-symbols-outlined text-sm">add</span> Generate Key
+    </button>
+  </header>
+
+  <!-- Keystore Protected Banner -->
+  <div class="p-3 rounded-xl bg-pip-success/10 border border-pip-success/30 flex items-center gap-2 text-pip-success text-xs font-mono">
+    <span class="material-symbols-outlined text-sm">security</span> Android Keystore Encryption Active
+  </div>
+
+  <main class="flex flex-col gap-3">
+    <!-- Key Card 1 -->
+    <div class="p-4 rounded-xl bg-surface-0 border border-white/5 flex flex-col gap-3">
+      <div class="flex items-center justify-between">
+        <div class="flex flex-col">
+          <span class="font-semibold text-white text-sm">id_ed25519_production</span>
+          <span class="font-mono text-xs text-white/40">Ed25519 • 256-bit</span>
+        </div>
+        <span class="px-2 py-0.5 rounded text-[9px] font-mono bg-accent-blue/10 text-accent-blue font-bold">Default</span>
+      </div>
+
+      <!-- OpenSSH Public Key Widget -->
+      <div class="font-mono text-[11px] text-white/60 bg-black/40 p-2.5 rounded-lg border border-white/5 overflow-x-auto whitespace-nowrap">
+        ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... uznir@tether
+      </div>
+
+      <div class="flex gap-2">
+        <button class="flex-1 py-1.5 rounded-lg bg-white/5 text-accent-blue text-xs font-semibold border border-white/5 hover:bg-white/10 flex items-center justify-center gap-1">
+          <span class="material-symbols-outlined text-sm">content_copy</span> Copy Public Key
+        </button>
+        <button class="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 flex items-center justify-center">
+          <span class="material-symbols-outlined text-sm">delete</span>
+        </button>
+      </div>
+    </div>
+  </main>
+
+</body>
+</html>

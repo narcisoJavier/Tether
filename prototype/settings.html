@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+  <title>Tether / OPA - Settings & About</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700;800&display=swap"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "oled-black": "#000000",
+            "surface-0": "#1C1C1E",
+            "surface-1": "#2C2C2E",
+            "accent-blue": "#0A84FF",
+            "pip-success": "#32D74B"
+          },
+          fontFamily: {
+            mono: ["JetBrains Mono", "monospace"],
+            sans: ["Hanken Grotesk", "sans-serif"]
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body { background-color: #000000; color: #E0E2ED; font-family: 'Hanken Grotesk', sans-serif; }
+  </style>
+</head>
+<body class="bg-oled-black min-h-screen p-4 flex flex-col gap-4">
+  
+  <header class="py-2 border-b border-white/10">
+    <h1 class="text-xl font-bold text-white flex items-center gap-2">
+      <span class="material-symbols-outlined text-accent-blue">settings</span> App Settings
+    </h1>
+  </header>
+
+  <main class="flex flex-col gap-4">
+    <!-- Security Section -->
+    <div class="flex flex-col gap-2">
+      <h2 class="text-xs font-mono uppercase text-white/40 tracking-wider">Security Preferences</h2>
+      
+      <div class="p-4 rounded-xl bg-surface-0 border border-white/5 flex items-center justify-between">
+        <div class="flex flex-col gap-0.5">
+          <span class="text-sm font-semibold text-white">Biometric Gate</span>
+          <span class="text-xs text-white/40">Require Fingerprint / Face ID on app open</span>
+        </div>
+        <div class="w-12 h-6 rounded-full bg-accent-blue p-1 flex items-center justify-end">
+          <div class="w-4 h-4 rounded-full bg-white"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Terminal Section -->
+    <div class="flex flex-col gap-2">
+      <h2 class="text-xs font-mono uppercase text-white/40 tracking-wider">Terminal Engine</h2>
+      
+      <div class="p-4 rounded-xl bg-surface-0 border border-white/5 flex items-center justify-between">
+        <span class="text-sm font-semibold text-white">Default Font Size</span>
+        <span class="font-mono text-sm text-accent-blue">14 pt</span>
+      </div>
+
+      <div class="p-4 rounded-xl bg-surface-0 border border-white/5 flex items-center justify-between">
+        <span class="text-sm font-semibold text-white">Scrollback Buffer</span>
+        <span class="font-mono text-sm text-white/60">10,000 lines</span>
+      </div>
+    </div>
+
+    <!-- About & Updates Card -->
+    <div class="p-4 rounded-xl bg-surface-0 border border-white/10 flex flex-col gap-3">
+      <div class="flex items-center justify-between">
+        <div class="flex flex-col">
+          <span class="text-base font-bold text-white">Tether / OPA</span>
+          <span class="font-mono text-xs text-white/50">Installed Version: v0.5.0+3</span>
+        </div>
+        <span class="px-2.5 py-1 rounded-full bg-pip-success/10 border border-pip-success/30 text-pip-success text-xs font-mono font-bold">Up to date</span>
+      </div>
+
+      <button class="w-full py-2.5 rounded-lg bg-surface-1 border border-accent-blue/40 text-accent-blue font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-white/5 transition-colors">
+        <span class="material-symbols-outlined text-sm">update</span> Check GitHub Updates
+      </button>
+    </div>
+  </main>
+
+</body>
+</html>

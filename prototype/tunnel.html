@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+  <title>Tether / OPA - Tailscale WireGuard Mesh</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700;800&display=swap"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "oled-black": "#000000",
+            "surface-0": "#1C1C1E",
+            "surface-1": "#2C2C2E",
+            "neon-blue-glow": "#00CCFF",
+            "pip-success": "#32D74B"
+          },
+          fontFamily: {
+            mono: ["JetBrains Mono", "monospace"],
+            sans: ["Hanken Grotesk", "sans-serif"]
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body { background-color: #000000; color: #E0E2ED; font-family: 'Hanken Grotesk', sans-serif; }
+  </style>
+</head>
+<body class="bg-oled-black min-h-screen p-4 flex flex-col gap-4">
+  
+  <header class="flex items-center justify-between py-2">
+    <h1 class="text-xl font-bold text-white flex items-center gap-2">
+      <span class="material-symbols-outlined text-neon-blue-glow">lan</span> Tailscale Mesh Node
+    </h1>
+    <div class="px-2.5 py-1 rounded-full bg-pip-success/10 border border-pip-success/30 text-pip-success text-xs font-mono font-bold flex items-center gap-1.5">
+      <div class="w-1.5 h-1.5 rounded-full bg-pip-success animate-pulse"></div> Active
+    </div>
+  </header>
+
+  <main class="flex flex-col gap-4">
+    <!-- Node Specs Card -->
+    <div class="p-4 rounded-xl bg-surface-0 border border-white/10 flex flex-col gap-3">
+      <div class="flex justify-between items-center">
+        <span class="text-xs font-mono text-white/50 uppercase">Tailnet IP Address</span>
+        <span class="font-mono text-sm font-bold text-neon-blue-glow">100.124.93.82</span>
+      </div>
+      <div class="flex justify-between items-center">
+        <span class="text-xs font-mono text-white/50 uppercase">MagicDNS Suffix</span>
+        <span class="font-mono text-xs text-white">coral-snake.ts.net</span>
+      </div>
+    </div>
+
+    <!-- Peer Nodes List -->
+    <h2 class="text-xs font-mono uppercase text-white/40 tracking-wider">Mesh Peer Devices (4 Online)</h2>
+
+    <div class="flex flex-col gap-2">
+      <div class="p-3 rounded-xl bg-surface-0 border border-white/5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-2 h-2 rounded-full bg-pip-success shadow-[0_0_6px_#32D74B]"></div>
+          <div class="flex flex-col">
+            <span class="text-sm font-semibold text-white">prowl-redis-01</span>
+            <span class="font-mono text-xs text-white/40">100.124.93.12 • Ubuntu 24.04</span>
+          </div>
+        </div>
+        <span class="font-mono text-xs text-pip-success">14 ms</span>
+      </div>
+
+      <div class="p-3 rounded-xl bg-surface-0 border border-white/5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-2 h-2 rounded-full bg-pip-success shadow-[0_0_6px_#32D74B]"></div>
+          <div class="flex flex-col">
+            <span class="text-sm font-semibold text-white">api-gateway-stg</span>
+            <span class="font-mono text-xs text-white/40">100.124.93.44 • Debian 12</span>
+          </div>
+        </div>
+        <span class="font-mono text-xs text-pip-success">22 ms</span>
+      </div>
+    </div>
+  </main>
+
+</body>
+</html>
