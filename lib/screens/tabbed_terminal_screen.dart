@@ -396,6 +396,9 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     // Adjust active tab index.
     if (_tabOrder.isEmpty) {
       _activeTabIndex = 0;
+      if (mounted) {
+        context.go('/');
+      }
     } else if (_activeTabIndex >= _tabOrder.length) {
       _activeTabIndex = _tabOrder.length - 1;
     }
@@ -466,6 +469,15 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
               tab.initialCommand = initialPendingCmd.command;
             }
           }
+        }
+      });
+    }
+
+    // Auto-bounce to Home when zero tabs exist and no tab request is pending
+    if (_tabOrder.isEmpty && initialPendingTab == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _tabOrder.isEmpty && ref.read(pendingTerminalTabProvider) == null) {
+          context.go('/');
         }
       });
     }
