@@ -29,6 +29,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   NodeState? _tailscaleNodeState;
   bool _tailscaleListenerRegistered = false;
+  String _selectedEnvFilter = 'All Nodes';
 
   @override
   void initState() {
@@ -312,34 +313,97 @@ Future<void> _showAuthUrl() async {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppConstants.primaryGreen.withValues(alpha: 0.12),
-                border:
-                    Border.all(color: AppConstants.primaryGreen.withValues(alpha: 0.25)),
-              ),
-              child: const Icon(
-                Icons.terminal_rounded,
-                size: 18,
-                color: AppConstants.primaryGreen,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                'assets/logo.png',
+                width: 28,
+                height: 28,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    color: const Color(0xFF00CCFF).withValues(alpha: 0.15),
+                    border: Border.all(
+                      color: const Color(0xFF00CCFF).withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.terminal_rounded,
+                    size: 16,
+                    color: Color(0xFF00CCFF),
+                  ),
+                ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Text(
-              'OPA',
-              style: GoogleFonts.inter(
-                fontSize: 20,
+              'Tether',
+              style: GoogleFonts.hankenGrotesk(
+                fontSize: 19,
                 fontWeight: FontWeight.w700,
                 color: Colors.white,
-                letterSpacing: 1.5,
+                letterSpacing: 0.5,
               ),
             ),
           ],
         ),
         actions: [
+          GestureDetector(
+            onTap: _showTailscaleSettings,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFF181C23),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFF00CCFF).withValues(alpha: 0.25),
+                  width: 0.8,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _tailscaleNodeState == NodeState.running
+                          ? const Color(0xFF32D74B)
+                          : const Color(0xFFFF9F0A),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (_tailscaleNodeState == NodeState.running
+                                  ? const Color(0xFF32D74B)
+                                  : const Color(0xFFFF9F0A))
+                              .withValues(alpha: 0.5),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _tailscaleNodeState == NodeState.running
+                        ? 'MESH ACTIVE'
+                        : 'MESH IDLE',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: _tailscaleNodeState == NodeState.running
+                          ? const Color(0xFF32D74B)
+                          : const Color(0xFFFF9F0A),
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           IconButton(
             icon: Icon(
               Icons.settings_rounded,
@@ -359,6 +423,124 @@ Future<void> _showAuthUrl() async {
         child: ListView(
           padding: const EdgeInsets.only(top: 8, bottom: 100),
           children: [
+            // ── Tailscale Node Status Glass Card ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: GestureDetector(
+                onTap: _showTailscaleSettings,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF181C23),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF00CCFF).withValues(alpha: 0.05),
+                        blurRadius: 20,
+                        spreadRadius: -2,
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        right: -20,
+                        top: -20,
+                        child: Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF00CCFF).withValues(alpha: 0.12),
+                          ),
+                        ),
+                      ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'TAILSCALE NODE',
+                                  style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF8E8E93),
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _tailscaleNodeState == NodeState.running
+                                      ? '100.124.93.82'
+                                      : 'Node Inactive',
+                                  style: GoogleFonts.hankenGrotesk(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _tailscaleNodeState == NodeState.running
+                                      ? 'mbp-alpha.coral-snake.ts.net'
+                                      : 'Tap to connect WireGuard mesh',
+                                  style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 11,
+                                    color: const Color(0xFF00CCFF),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: const Color(0xFF262A32),
+                              border: Border.all(
+                                color: const Color(0xFF00CCFF).withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.lan_rounded,
+                              color: Color(0xFF00CCFF),
+                              size: 20,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // ── Environment Filter Chips ──
+            SizedBox(
+              height: 38,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  _buildEnvFilterChip('All Nodes', Colors.white, const Color(0xFF00CCFF)),
+                  const SizedBox(width: 8),
+                  _buildEnvFilterChip('Prod', const Color(0xFF8E8E93), const Color(0xFFFF453A)),
+                  const SizedBox(width: 8),
+                  _buildEnvFilterChip('Staging', const Color(0xFF8E8E93), const Color(0xFFFFD60A)),
+                  const SizedBox(width: 8),
+                  _buildEnvFilterChip('HomeLab', const Color(0xFF8E8E93), const Color(0xFF32D74B)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
             // ── Header section ──
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
@@ -447,7 +629,13 @@ Future<void> _showAuthUrl() async {
                 subtitle: 'Tap + to add your first SSH connection',
               )
             else
-              ...profiles.map(
+              ...profiles.where((p) {
+                if (_selectedEnvFilter == 'All Nodes') return true;
+                if (_selectedEnvFilter == 'Prod') return p.label.toLowerCase().contains('prod') || p.host.contains('prod');
+                if (_selectedEnvFilter == 'Staging') return p.label.toLowerCase().contains('stg') || p.label.toLowerCase().contains('stage');
+                if (_selectedEnvFilter == 'HomeLab') return p.label.toLowerCase().contains('home') || p.label.toLowerCase().contains('lab');
+                return true;
+              }).map(
                 (profile) => ConnectionTile(
                   profile: profile,
                   tailscaleState: _tailscaleNodeState,
@@ -547,6 +735,67 @@ Future<void> _showAuthUrl() async {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEnvFilterChip(String label, Color textColor, Color dotColor) {
+    final isSelected = _selectedEnvFilter == label;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedEnvFilter = label),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF262A32)
+              : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF00CCFF).withValues(alpha: 0.4)
+                : Colors.white.withValues(alpha: 0.05),
+            width: isSelected ? 1.0 : 0.5,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF00CCFF).withValues(alpha: 0.15),
+                    blurRadius: 10,
+                  ),
+                ]
+              : [],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: dotColor,
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: dotColor.withValues(alpha: 0.6),
+                          blurRadius: 6,
+                        ),
+                      ]
+                    : [],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? Colors.white : textColor,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
