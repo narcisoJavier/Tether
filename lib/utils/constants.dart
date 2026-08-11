@@ -26,8 +26,13 @@ class AppConstants {
   static const String tailscaleStateDirName = 'tailscale-state';
 
   // GitHub repository — used for update checks via Releases API
-  static const String gitHubOwner = '2241812';
+  static const String gitHubOwner = 'narcisoJavier';
   static const String gitHubRepo = 'OPA_Flutter';
+
+  // Update check cache keys
+  static const String lastUpdateCheckKey = 'opa_last_update_check_time';
+  static const String updateEtagKey = 'opa_update_etag';
+  static const String cachedUpdateInfoKey = 'opa_cached_update_info';
 
   // SSH defaults
   static const int defaultSshPort = 22;

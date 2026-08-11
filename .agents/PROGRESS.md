@@ -1,90 +1,52 @@
-# OPA v0.4 — Implementation Progress
+# OPA v0.5 — Tabbed Terminal + Version Control Overhaul & Apple TUI 2.0
 
-> **PURPOSE**: This file lives in the workspace so ANY new agent session can read it and continue work seamlessly — even if the user switches Google AI accounts due to rate limits.
->
-> **LAST UPDATED**: 2026-07-15T17:21:00Z
+> **LAST UPDATED**: 2026-08-11T11:52:00Z
+> **STATUS**: All tasks complete, verified clean with `dart analyze` (0 errors, 0 warnings), committed locally.
 
-## Current Goal
+## ✅ Completed Accomplishments
 
-Implement OPA v0.4: Architectural refactors + Port Forwarding feature. Six work items in dependency order.
+### 1. Tabbed Terminal & Session Persistence Engine
+- **`TerminalTab` Model** ([`lib/models/terminal_tab.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/models/terminal_tab.dart)): Ephemeral session model with `copyWith`.
+- **`TabManager` StateNotifier** ([`lib/services/tab_manager.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/services/tab_manager.dart)): Global tab list provider.
+- **`TabbedTerminalScreen`** ([`lib/screens/tabbed_terminal_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/tabbed_terminal_screen.dart)): Multi-tab terminal interface with auto-fit font scaling, pinch-to-zoom, and bottom SSH key bar.
+- **Unified Single Header Bar**: 36px OLED glass header bar combining back navigation, scrollable tab chips (`[● server ×]`), new tab `+` trigger, and grid dimensions (`76×66`), saving 34px of vertical terminal height.
+- **`StatefulShellRoute` Refactor** ([`lib/app_router.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/app_router.dart)): Branch 0 (Home + sub-screens), Branch 1 (Terminal persistent background).
 
-## Execution Order & Status
+### 2. Version Control & Update Subsystem Overhaul
+- **`pub_semver` Integration** ([`pubspec.yaml`](file:///D:/A-PC%20FILES/Desktop/OPA/pubspec.yaml)): Added `pub_semver: ^2.1.4` for standard SemVer parsing.
+- **Tag Normalization & Build Numbers** ([`lib/services/update_service.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/services/update_service.dart)): Normalized short tags (`v0.4` → `0.4.0`) and included build numbers (`+2`) from `PackageInfo`.
+- **GitHub API Rate Limit Protection**: 24-hour check cache in `SharedPreferences` + HTTP `If-None-Match` ETag headers (handling 304 Not Modified).
+- **GitHub Owner Alignment** ([`lib/utils/constants.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/utils/constants.dart)): Updated `gitHubOwner` to `'narcisoJavier'`.
+- **Manual Update Check Button** ([`lib/screens/settings_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/settings_screen.dart)): Added "Check Update" button in Settings About section.
+- **Unit Test Suite** ([`test/update_service_test.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/test/update_service_test.dart)): Comprehensive tests for semver parsing, tag normalization, and version comparison.
 
-| # | Item | Status | Notes |
-|---|------|--------|-------|
-| 1 | TunnelConfig model + Hive adapter | ✅ DONE | New model, Hive adapter typeId 3, ConnectionProfile updated, export service updated, tests added |
-| 2 | Per-session SshService | ✅ DONE | Refactored to `.autoDispose.family` keyed by profileId. Updated terminal, sftp, profile_editor, quick_commands screens |
-| 3 | Password → Keystore migration | ✅ DONE | ProfileStorageService updated, main.dart wires one-time migration, all screens updated to use secure storage |
-| 4 | Biometric guard → GoRouter redirect | ✅ DONE | Moved from widget-level gate to route-based redirect. /lock route added, OpaApp simplified |
-| 5 | Tunnel management in SshService | ✅ DONE | forwardLocal/forwardRemote/dynamicSocks5 + ActiveTunnel tracking + SOCKS5 handler |
-| 6 | Tunnel screen + UI integration | ✅ DONE | New TunnelScreen, /tunnel/:profileId route, 4th swipe action "FWD" on ConnectionTile |
+### 3. Critical Bug & Layout Fixes
+- **`SshService` Premature Disposal Fix** ([`lib/screens/profile_editor_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/profile_editor_screen.dart)): Fixed `A SshService was used after being disposed` by removing `.autoDispose` from `sshServiceProvider` and using a dedicated local `SshService` with `try-finally` cleanup in `_testConnection()`.
+- **`GlassAppBar` Sub-pixel RenderFlex Overflow Fix** ([`lib/widgets/gradient_scaffold.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/widgets/gradient_scaffold.dart)): Wrapped toolbar in `Expanded` and applied `?bottom` collection element syntax.
 
-## Design Decisions (Locked)
+### 4. Design System & Stitch Integration
+- **Apple TUI 2.0 Design Spec** ([`DESIGN.md`](file:///D:/A-PC%20FILES/Desktop/OPA/DESIGN.md)): Redesigned design system specifications.
+- **Stitch MCP Design System**: Created Stitch Design System Asset (`fe45070ab7a04d699d2e47ea13a59bec`) in project `8829127669028180393`.
 
-- **No build_runner migration**: Switching Hive adapters to code-gen would change the binary format, wiping all existing user data. Keep manual adapters.
-- **TunnelConfig is a new model** with typeId: 3, stored as a list inside ConnectionProfile
-- **Per-session SshService**: Use `ChangeNotifierProvider.family<SshService, String>` keyed by profileId
-- **Password migration**: One-time migration on app start, passwords stored under key `ssh_password_{profileId}` in flutter_secure_storage
-- **Tunnel UI**: 4th swipe button "FWD" on ConnectionTile → `/tunnel/:profileId` screen
-- **ConnectionTile actions width**: Increase from 156 → 208 to fit 4 buttons
+---
 
-## Files Modified (Completed)
+## 🧪 Verification Status
 
-### Item 1 ✅
-- `[NEW]` `lib/models/tunnel_config.dart` — TunnelConfig model with TunnelType enum
-- `[MOD]` `lib/models/connection_profile.dart` — added `List<TunnelConfig> tunnels` field + copyWith
-- `[MOD]` `lib/services/hive_adapters.dart` — TunnelConfigAdapter (typeId 3), ConnectionProfileAdapter updated with backward-compat tunnel read/write
-- `[MOD]` `lib/services/export_service.dart` — tunnel JSON serialization/deserialization
-- `[MOD]` `test/hive_adapters_test.dart` — TunnelConfigAdapter round-trip tests, profile-with-tunnels tests
-- `[MOD]` `test/models_test.dart` — TunnelConfig model tests, ConnectionProfile tunnels tests
+- ✅ `dart analyze` — **No issues found! (0 errors, 0 warnings, 0 lints)**
+- ✅ Unit tests in `test/update_service_test.dart` passing.
+- ✅ App successfully built and running on Android Studio emulator (`emulator-5554`).
 
-### Item 2 ✅
-- `[MOD]` `lib/services/ssh_service.dart` — `ChangeNotifierProvider.autoDispose.family<SshService, String>` keyed by profileId
-- `[MOD]` `lib/screens/terminal_screen.dart` — all 5 refs updated to `sshServiceProvider(widget.profileId)`
-- `[MOD]` `lib/screens/sftp_screen.dart` — ref updated to `sshServiceProvider(widget.profileId)`
-- `[MOD]` `lib/screens/profile_editor_screen.dart` — ref updated with temp key `_test_${profile.id}`
-- `[MOD]` `lib/screens/quick_commands_screen.dart` — ref updated to `sshServiceProvider(profile.id)`
+---
 
-### Item 3 ✅
-- `[MOD]` `lib/services/profile_storage_service.dart` — added FlutterSecureStorage integration, getPassword/savePassword/deletePassword/migratePasswords
-- `[MOD]` `lib/main.dart` — one-time password migration on app start
-- `[MOD]` `lib/screens/terminal_screen.dart` — password from secure storage with legacy fallback
-- `[MOD]` `lib/screens/profile_editor_screen.dart` — save/load/delete password via secure storage
-- `[MOD]` `lib/screens/quick_commands_screen.dart` — password from secure storage with legacy fallback
+## 🔮 Next Session Roadmap (QoL Ideas)
 
-### Item 4 ✅
-- `[MOD]` `lib/app_router.dart` — biometric redirect + /lock route + appRouterProvider watches auth state
-- `[MOD]` `lib/main.dart` — removed widget-level biometric gate, simplified OpaApp
-
-### Item 5 ✅
-- `[MOD]` `lib/services/ssh_service.dart` — forwardLocal, forwardRemote, dynamicSocks5, ActiveTunnel class, SOCKS5 handler, tunnel cleanup on disconnect
-
-### Item 6 ✅
-- `[NEW]` `lib/screens/tunnel_screen.dart` — full tunnel management UI with add/start/stop/delete
-- `[MOD]` `lib/app_router.dart` — /tunnel/:profileId route
-- `[MOD]` `lib/widgets/connection_tile.dart` — 4th swipe action "FWD", widened to 208px
-- `[MOD]` `lib/screens/home_screen.dart` — wired onTunnelTap callback
-
-### Bug Fixes
-- `[MOD]` `lib/screens/welcome_back_screen.dart` — removed dead _ascii code (compile error fix)
-- `[MOD]` `lib/screens/key_management_screen.dart` — added mounted check for BuildContext async gap
-- `[MOD]` `lib/app_router.dart` — CRITICAL: fixed GoRouter GlobalKey crash by using refreshListenable instead of ref.watch pattern
-- `[MOD]` `lib/services/ssh_service.dart` — fixed SOCKS5 handler to use StreamIterator instead of socket.first (data loss prevention)
-- `[DEL]` `lib/screens/welcome_back_screen.dart2` — stale file
-- `[DEL]` `lib/screens/welcome_temp.txt` — stale file
-
-## Verification Status
-
-- [x] `flutter analyze` — 0 issues found ✅
-- [ ] `flutter test` — Cannot run on Windows (Go native build requires GCC/NDK — expected)
-- [x] Code audit — Manual audit completed, bugs found and fixed ✅
-- [x] Build test — Static analysis clean ✅
-
-## How to Resume
-
-1. Read this file to understand current state
-2. Check the status table above for what's done vs pending
-3. For in-progress items, check the "Files Modified" section for what's been written
-4. Continue from the next pending item
-5. After completing an item, update status to ✅ DONE and add files to "Files Modified (Completed)"
-6. Run `dart analyze` and `flutter test` after each item to verify
+1. **Terminal Usability**:
+   - Swipeable SSH touch keyboard categories (`Nav`, `Dev`, `Control`).
+   - Text selection floating clipboard bar (`Copy`, `Paste`, `Clear`).
+   - Pinch-to-zoom font size toast overlay (`14 pt`).
+2. **Home Screen Organization**:
+   - Environment filter chips (`All`, `Prod`, `Staging`, `HomeLab`).
+   - Search bar for quick server filtering.
+3. **SFTP Enhancements**:
+   - Interactive breadcrumb navigation path bar (`root / var / log`).
+   - In-app text/config file viewer & editor (`.env`, `docker-compose.yml`).

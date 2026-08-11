@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/biometric_provider.dart';
 import '../services/export_service.dart';
 import '../services/onboarding_service.dart';
+import '../services/update_service.dart';
 import '../utils/app_version.dart';
 import '../utils/constants.dart';
 import '../utils/terminal_settings_provider.dart';
@@ -546,19 +547,84 @@ class _AboutCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => launchUrl(Uri.parse('https://github.com/2241812/OPA_Flutter'), mode: LaunchMode.externalApplication),
-              icon: const Icon(Icons.code_rounded, size: 18),
-              label: Text('View on GitHub', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white.withValues(alpha: 0.7),
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => launchUrl(
+                    Uri.parse('https://github.com/${AppConstants.gitHubOwner}/${AppConstants.gitHubRepo}'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  icon: const Icon(Icons.code_rounded, size: 16),
+                  label: Text('GitHub', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white.withValues(alpha: 0.7),
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Checking for updates...', style: GoogleFonts.inter(fontSize: 13)),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                    final update = await UpdateService.checkForUpdate(force: true);
+                    if (!context.mounted) return;
+                    if (update != null) {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          backgroundColor: AppConstants.surfaceDark,
+                          title: Text('Update Available (${update.latestVersion})', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                          content: Text(
+                            update.releaseNotes.isNotEmpty ? update.releaseNotes : 'A new update is ready for download.',
+                            style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.8)),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: Text('Later', style: GoogleFonts.inter()),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                launchUrl(Uri.parse(update.downloadUrl), mode: LaunchMode.externalApplication);
+                              },
+                              style: ElevatedButton.styleFrom(backgroundColor: AppConstants.primaryGreen),
+                              child: Text('Download', style: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w600)),
+                            ),
+                          ],
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('OPA is up to date!', style: GoogleFonts.inter(fontSize: 13)),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.system_update_rounded, size: 16),
+                  label: Text('Check Update', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppConstants.primaryGreen.withValues(alpha: 0.15),
+                    foregroundColor: AppConstants.primaryGreen,
+                    elevation: 0,
+                    side: BorderSide(color: AppConstants.primaryGreen.withValues(alpha: 0.3)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

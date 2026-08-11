@@ -543,8 +543,8 @@ class ActiveTunnel {
 /// Provider for per-session SSH service instances.
 ///
 /// Each profile gets its own [SshService] keyed by `profileId`, enabling
-/// multiple independent SSH sessions. Auto-disposed when no longer watched.
+/// multiple independent SSH sessions.
 final sshServiceProvider =
-    ChangeNotifierProvider.autoDispose.family<SshService, String>((ref, profileId) {
+    ChangeNotifierProvider.family<SshService, String>((ref, profileId) {
   return SshService();
 });

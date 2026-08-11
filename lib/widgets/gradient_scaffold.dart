@@ -100,8 +100,7 @@ class GlassAppBar extends StatelessWidget implements PreferredSizeWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SizedBox(
-                  height: toolbarHeight,
+                Expanded(
                   child: NavigationToolbar(
                     leading: leading != null
                         ? Padding(
@@ -119,7 +118,7 @@ class GlassAppBar extends StatelessWidget implements PreferredSizeWidget {
                     centerMiddle: true,
                   ),
                 ),
-                if (bottom != null) bottom!,
+                ?bottom,
               ],
             ),
           ),

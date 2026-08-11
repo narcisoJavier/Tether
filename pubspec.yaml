@@ -53,6 +53,9 @@ dependencies:
   # Read the installed app version at runtime (for update checks)
   package_info_plus: ^10.0.0
 
+  # Semantic version parsing and comparison
+  pub_semver: ^2.1.4
+
   # Biometric authentication (fingerprint / face)
   local_auth: ^3.0.1
 

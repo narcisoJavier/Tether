@@ -10,20 +10,19 @@ import 'package:package_info_plus/package_info_plus.dart';
 class AppVersion {
   AppVersion._();
 
-  /// Compile-time fallback used when the platform package-info lookup fails.
-  static const String _fallbackVersion = '0.4.0';
+  /// Compile-time fallback matching pubspec.yaml version.
+  static const String _fallbackVersion = '0.4.0+2';
 
   static String? _cached;
 
-  /// Returns the installed version in "major.minor.patch" form (e.g. "0.2.2"),
-  /// or the compile-time fallback if the platform
-  /// lookup fails.
+  /// Returns the installed version in "major.minor.patch+build" form (e.g. "0.4.0+2"),
+  /// or the compile-time fallback if the platform lookup fails.
   static Future<String> get() async {
     if (_cached != null) return _cached!;
     try {
       final info = await PackageInfo.fromPlatform();
-      // version is "major.minor.patch" from pubspec; buildNumber is the +N part.
-      _cached = info.version;
+      final buildSuffix = info.buildNumber.isNotEmpty ? '+${info.buildNumber}' : '';
+      _cached = '${info.version}$buildSuffix';
       return _cached!;
     } catch (_) {
       _cached = _fallbackVersion;

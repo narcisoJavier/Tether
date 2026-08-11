@@ -477,10 +477,10 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isTesting = true);
+    final testService = SshService();
 
     try {
       final profile = _buildProfile();
-      final sshService = ref.read(sshServiceProvider('_test_${profile.id}'));
 
       TailscaleSSHSocket? sock;
       if (_connectionMethod == ConnectionMethod.tailscale) {
@@ -498,7 +498,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
             .getPrivateKey(_selectedKeyId!);
       }
 
-      await sshService.testConnection(
+      await testService.testConnection(
         profile: profile,
         privateKey: privateKey,
         password: _passwordController.text,
@@ -537,6 +537,8 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
         );
       }
     } finally {
+      await testService.disconnect();
+      testService.dispose();
       if (mounted) {
         setState(() => _isTesting = false);
       }
