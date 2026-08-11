@@ -46,6 +46,7 @@ class ConnectionProfileAdapter extends TypeAdapter<ConnectionProfile> {
       lastConnectionSuccess: reader.readBool(),
       connectionMethod: _readConnectionMethod(reader),
       tunnels: _readTunnels(reader),
+      environment: _readEnvironment(reader),
     );
   }
 
@@ -65,6 +66,7 @@ class ConnectionProfileAdapter extends TypeAdapter<ConnectionProfile> {
     writer.writeBool(obj.lastConnectionSuccess);
     writer.writeByte(obj.connectionMethod.index);
     _writeTunnels(writer, obj.tunnels);
+    writer.write(obj.environment);
   }
 
   /// Reads [ConnectionMethod] from a Hive binary reader with backward
@@ -105,6 +107,16 @@ class ConnectionProfileAdapter extends TypeAdapter<ConnectionProfile> {
     for (final tunnel in tunnels) {
       adapter.write(writer, tunnel);
     }
+  }
+
+  /// Reads [environment] with backward compatibility for older profiles.
+  String? _readEnvironment(BinaryReader reader) {
+    try {
+      if (reader.availableBytes > 0) {
+        return reader.read() as String?;
+      }
+    } catch (_) {}
+    return null;
   }
 }
 

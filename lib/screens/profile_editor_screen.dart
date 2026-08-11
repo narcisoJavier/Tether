@@ -42,6 +42,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   final _authKeyController = TextEditingController();
   bool _obscureAuthKey = true;
   ConnectionMethod _connectionMethod = ConnectionMethod.direct;
+  String _environment = 'Prod';
 
   bool get _isEditing => widget.profileId != null;
   ConnectionProfile? _existingProfile;
@@ -72,6 +73,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       _selectedKeyId = _existingProfile!.keyId;
       _colorIndex = _existingProfile!.colorIndex;
       _connectionMethod = _existingProfile!.connectionMethod;
+      _environment = _existingProfile!.effectiveEnvironment;
     });
 
     // Load password from secure storage (falls back to legacy Hive field).
@@ -202,6 +204,28 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
                   ),
                 ),
               ],
+            ),
+
+            const SizedBox(height: 20),
+            _buildSectionLabel('Environment Tag'),
+            const SizedBox(height: 10),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(
+                  value: 'Prod',
+                  label: Text('Prod 🔴'),
+                ),
+                ButtonSegment(
+                  value: 'Staging',
+                  label: Text('Staging 🟡'),
+                ),
+                ButtonSegment(
+                  value: 'HomeLab',
+                  label: Text('HomeLab 🟢'),
+                ),
+              ],
+              selected: {_environment},
+              onSelectionChanged: (s) => setState(() => _environment = s.first),
             ),
 
             const SizedBox(height: 28),
@@ -593,6 +617,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       keyId: _selectedKeyId,
       colorIndex: _colorIndex,
       connectionMethod: _connectionMethod,
+      environment: _environment,
       createdAt: _existingProfile?.createdAt,
     );
   }

@@ -30,6 +30,39 @@ void main() {
       expect(p.shortLabel, 'admin@192.168.1.50');
     });
 
+    test('effectiveEnvironment returns explicit value if present or infers fallback', () {
+      final pProd = ConnectionProfile(
+        id: '1',
+        label: 'prod-server',
+        host: '10.0.0.1',
+        port: 22,
+        username: 'root',
+        authType: AuthType.password,
+      );
+      expect(pProd.effectiveEnvironment, 'Prod');
+
+      final pStg = ConnectionProfile(
+        id: '2',
+        label: 'api-gateway-stg',
+        host: '10.0.0.2',
+        port: 22,
+        username: 'root',
+        authType: AuthType.password,
+      );
+      expect(pStg.effectiveEnvironment, 'Staging');
+
+      final pExplicit = ConnectionProfile(
+        id: '3',
+        label: 'server',
+        host: '10.0.0.3',
+        port: 22,
+        username: 'root',
+        authType: AuthType.password,
+        environment: 'HomeLab',
+      );
+      expect(pExplicit.effectiveEnvironment, 'HomeLab');
+    });
+
     test('defaults: port-independent, colorIndex 0, not connected', () {
       final p = makeProfile();
       expect(p.colorIndex, 0);

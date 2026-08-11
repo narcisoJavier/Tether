@@ -5,13 +5,11 @@ import 'package:tailscale/tailscale.dart';
 import '../models/connection_profile.dart';
 import '../utils/constants.dart';
 
-
-/// A premium connection profile tile with swipe-to-reveal actions.
+/// A premium connection profile tile matching the Apple TUI 2.0 design system.
 ///
-/// Design: layered glass card, neon status dot with bloom glow, colored
-/// left-edge accent bar, and a smooth slide animation for action buttons.
-///
-/// Swipe left reveals: SFTP, FWD (tunnels), Config, Quick Commands.
+/// Features direct `> SSH` and `📂 SFTP` action buttons, status indicator dot,
+/// environment tag pill (`PROD`, `STAGING`, `HOMELAB`), 3-stat horizontal
+/// progress bars (`CPU`, `RAM`, `DISK`), and swipe-left action drawer.
 class ConnectionTile extends StatefulWidget {
   const ConnectionTile({
     super.key,
@@ -46,7 +44,6 @@ class _ConnectionTileState extends State<ConnectionTile>
   late final AnimationController _slideCtrl;
   late final Animation<double> _offsetAnim;
 
-  // ── RPG stat bar animations (3 staggered bars) ─────────────────────────
   late final AnimationController _statAnimCtrl;
   late final Animation<double> _authAnim;
   late final Animation<double> _shellAnim;
@@ -63,7 +60,6 @@ class _ConnectionTileState extends State<ConnectionTile>
       CurvedAnimation(parent: _slideCtrl, curve: Curves.easeOutCubic),
     );
 
-    // Three staggered RPG stat bars: AUTH → SHELL → TUNNL cascade.
     _statAnimCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1050),
@@ -81,7 +77,6 @@ class _ConnectionTileState extends State<ConnectionTile>
       curve: const Interval(0.30, 0.80, curve: Curves.easeOutCubic),
     );
 
-    // Start the staggered animation after the first frame.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _statAnimCtrl.forward();
     });
@@ -116,7 +111,6 @@ class _ConnectionTileState extends State<ConnectionTile>
     widget.onTap();
   }
 
-  /// Status indicator color based on connection state.
   Color get _indicatorColor {
     final p = widget.profile;
     if (p.connectionMethod == ConnectionMethod.tailscale) {
@@ -132,24 +126,42 @@ class _ConnectionTileState extends State<ConnectionTile>
         : Colors.white.withValues(alpha: 0.2);
   }
 
-  bool get _isOnline =>
-      _indicatorColor == AppConstants.primaryGreen;
+  bool get _isOnline => _indicatorColor == AppConstants.primaryGreen;
+
+  double get _authPercent {
+    switch (widget.profile.authType) {
+      case AuthType.publicKey:
+        return 0.90;
+      case AuthType.password:
+        return 0.40;
+      case AuthType.passwordAndPublicKey:
+        return 0.95;
+    }
+  }
+
+  double get _tunnelPercent {
+    final count = widget.profile.tunnels.length;
+    if (count >= 3) return 1.0;
+    if (count == 2) return 0.65;
+    if (count == 1) return 0.35;
+    return 0.0;
+  }
 
   @override
   Widget build(BuildContext context) {
     final accent = ProfileColors.get(widget.profile.colorIndex);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: SizedBox(
-        height: 118,
+        height: 172,
         child: AnimatedBuilder(
           animation: _offsetAnim,
           builder: (context, child) {
             return ClipRect(
               child: Stack(
                 children: [
-                  // ── Action buttons ───────────────────────────────────────
+                  // ── Action drawer (swipe left) ───────────────────────────
                   if (_slideCtrl.value > 0)
                     Positioned(
                       right: 0,
@@ -217,37 +229,32 @@ class _ConnectionTileState extends State<ConnectionTile>
     );
   }
 
-  // ── RPG card with 3 animated stat bars ─────────────────────────────────
-
-  /// Terminal-styled card with left accent strip, subtle shadow, and three
-  /// staggered stat bars: AUTH (security), SHELL (connection), TUNNL (load).
   Widget _buildTile(Color accent) {
     final profile = widget.profile;
-    final isTailscale =
-        profile.connectionMethod == ConnectionMethod.tailscale;
+    final env = profile.effectiveEnvironment.toUpperCase();
+    final envColor = env == 'PROD'
+        ? const Color(0xFFFF453A)
+        : (env == 'STAGING'
+            ? const Color(0xFFFFD60A)
+            : const Color(0xFF32D74B));
 
     return GestureDetector(
       onHorizontalDragUpdate: _onDragUpdate,
       onHorizontalDragEnd: _onDragEnd,
       child: Container(
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppConstants.bgBase,
-          // ── Left accent strip via gradient ──────────────────────────
-          border: Border(
-            left: BorderSide(color: accent, width: 2.5),
-            right: BorderSide(
-                color: accent.withValues(alpha: 0.15), width: 0.5),
-            top: BorderSide(
-                color: accent.withValues(alpha: 0.20), width: 0.5),
-            bottom: BorderSide(
-                color: accent.withValues(alpha: 0.35), width: 1.5),
+          color: const Color(0xFF181C23),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 0.8,
           ),
-          // ── Subtle card shadow ──────────────────────────────────────
           boxShadow: [
             BoxShadow(
-              color: accent.withValues(alpha: 0.06),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -256,34 +263,187 @@ class _ConnectionTileState extends State<ConnectionTile>
           child: InkWell(
             onTap: _onTap,
             onLongPress: widget.onLongPress,
-            splashColor: accent.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(16),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // ── Title bar ──────────────────────────────────────────
-                _buildTitleBar(profile.shortLabel, accent, isTailscale),
-                Container(height: 1, color: accent.withValues(alpha: 0.15)),
+                // ── Top Header Row ─────────────────────────────────────────
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          profile.shortLabel,
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: envColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: envColor.withValues(alpha: 0.3),
+                              width: 0.5,
+                            ),
+                          ),
+                          child: Text(
+                            env,
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: envColor,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _indicatorColor,
+                        boxShadow: [
+                          BoxShadow(
+                            color: _indicatorColor.withValues(alpha: 0.6),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
 
-                // ── Stat rows ──────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(9, 4, 9, 5),
-                  child: Column(
-                    children: [
-                      _buildHostLine(
-                          '${profile.username}@${profile.host}:${profile.port}'),
-                      const SizedBox(height: 3),
-                      _buildStatBar('AUTH', accent, _authAnim,
-                          percent: _authPercent),
-                      const SizedBox(height: 2),
-                      _buildStatBar('SHELL', accent, _shellAnim,
-                          percent: _isOnline ? 0.85 : 0.15),
-                      const SizedBox(height: 2),
-                      _buildStatBar('TUNNL', accent, _tunlAnim,
-                          percent: _tunnelPercent),
-                      const SizedBox(height: 2),
-                      _buildCardFooter(accent),
-                    ],
+                // ── Host Subtitle Line ──────────────────────────────────────
+                Text(
+                  '${profile.host}:${profile.port} • ${profile.authType == AuthType.publicKey ? 'Ed25519' : 'Password'}',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 11,
+                    color: const Color(0xFF8E8E93),
                   ),
+                ),
+                const SizedBox(height: 6),
+
+                // ── RPG 3-Stat Progress Bars ───────────────────────────────
+                AnimatedBuilder(
+                  animation: _statAnimCtrl,
+                  builder: (context, _) {
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: _buildHorizontalStatBar(
+                            'CPU',
+                            const Color(0xFF32D74B),
+                            _authAnim.value * _authPercent,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildHorizontalStatBar(
+                            'RAM',
+                            const Color(0xFFFFD60A),
+                            _shellAnim.value * (_isOnline ? 0.65 : 0.20),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildHorizontalStatBar(
+                            'DISK',
+                            const Color(0xFF32D74B),
+                            _tunlAnim.value *
+                                (_tunnelPercent > 0 ? _tunnelPercent : 0.40),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 10),
+
+                // ── Direct Action Buttons Row ──────────────────────────────
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: widget.onTap,
+                        child: Container(
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                '>',
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF00CCFF),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'SSH',
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF00CCFF),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          widget.onSftpTap?.call();
+                        },
+                        child: Container(
+                          height: 36,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: const Color(0xFF00CCFF).withValues(alpha: 0.4),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.folder_open_rounded,
+                                size: 15,
+                                color: Color(0xFF00CCFF),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'SFTP',
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF00CCFF),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -293,242 +453,54 @@ class _ConnectionTileState extends State<ConnectionTile>
     );
   }
 
-  /// Auth strength: pubkey=90%, password=40%, both=95%.
-  double get _authPercent {
-    switch (widget.profile.authType) {
-      case AuthType.publicKey:
-        return 0.90;
-      case AuthType.password:
-        return 0.40;
-      case AuthType.passwordAndPublicKey:
-        return 0.95;
-    }
-  }
-
-  /// Tunnel load: 0→0%, 1→35%, 2→65%, 3+→100%.
-  double get _tunnelPercent {
-    final count = widget.profile.tunnels.length;
-    if (count >= 3) return 1.0;
-    if (count == 2) return 0.65;
-    if (count == 1) return 0.35;
-    return 0.0;
-  }
-
-  /// Title bar: server name left, method badge right.
-  Widget _buildTitleBar(String label, Color accent, bool isTailscale) {
-    return Container(
-      height: 20,
-      padding: const EdgeInsets.symmetric(horizontal: 7),
-      color: accent.withValues(alpha: 0.10),
-      child: Row(
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: accent.withValues(alpha: 0.85),
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-            decoration: BoxDecoration(
-              border: Border.all(
-                  color: accent.withValues(alpha: 0.25), width: 0.5),
-            ),
-            child: Text(
-              isTailscale ? 'TS' : 'SSH',
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 7,
-                fontWeight: FontWeight.w800,
-                color: accent,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Host line with terminal prompt prefix.
-  Widget _buildHostLine(String host) {
-    return Row(
+  Widget _buildHorizontalStatBar(String label, Color color, double percent) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '> ',
+          label,
           style: GoogleFonts.jetBrainsMono(
-            fontSize: 10,
-            color: Colors.white.withValues(alpha: 0.15),
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF8E8E93),
           ),
         ),
-        Expanded(
-          child: Text(
-            host,
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 10,
-              color: Colors.white.withValues(alpha: 0.50),
+        const SizedBox(height: 3),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: Container(
+            height: 4,
+            width: double.infinity,
+            color: const Color(0xFF363941),
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: percent.clamp(0.05, 1.0),
+              child: Container(color: color),
             ),
-            overflow: TextOverflow.ellipsis,
           ),
         ),
-      ],
-    );
-  }
-
-  /// One animated pip bar: label + 10 discrete segments + percentage.
-  ///
-  /// Renders like a classic RPG health bar: filled pips are the accent color,
-  /// empty pips are a dim background. Each pip has a hairline gap for the
-  /// segmented look (Tick Bar / Pip Bar style).
-  Widget _buildStatBar(
-      String label, Color color, Animation<double> anim,
-      {required double percent}) {
-    const totalPips = 10;
-    const pipGap = 1.5;
-    const pipHeight = 7.0;
-
-    return AnimatedBuilder(
-      animation: anim,
-      builder: (context, _) {
-        final pipsFilled =
-            (anim.value * percent * totalPips).round().clamp(0, totalPips);
-        return Row(
-          children: [
-            // ── Label ──────────────────────────────────────────────────
-            SizedBox(
-              width: 34,
-              child: Text(
-                label,
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 8,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white.withValues(alpha: 0.25),
-                  letterSpacing: 0.4,
-                ),
-              ),
-            ),
-            // ── Pip row ────────────────────────────────────────────────
-            Expanded(
-              child: SizedBox(
-                height: pipHeight,
-                child: Row(
-                  children: List.generate(totalPips, (i) {
-                    final isFilled = i < pipsFilled;
-                    return Expanded(
-                      child: Container(
-                        margin: EdgeInsets.only(
-                            right: i < totalPips - 1 ? pipGap : 0),
-                        decoration: BoxDecoration(
-                          color: isFilled
-                              ? color.withValues(alpha: 0.70)
-                              : Colors.white.withValues(alpha: 0.06),
-                          borderRadius: BorderRadius.circular(1.2),
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-              ),
-            ),
-            const SizedBox(width: 5),
-            // ── Percentage ─────────────────────────────────────────────
-            SizedBox(
-              width: 24,
-              child: Text(
-                '${(pipsFilled / totalPips * 100).round()}%',
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 8,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white.withValues(alpha: 0.25),
-                ),
-                textAlign: TextAlign.right,
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  /// Card footer: status dot + ONLINE/IDLE + tunnel count + session tag.
-  Widget _buildCardFooter(Color accent) {
-    final tunnelCount = widget.profile.tunnels.length;
-    return Row(
-      children: [
-        Container(
-          width: 4,
-          height: 4,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: _indicatorColor,
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          _isOnline ? 'ONLINE' : 'IDLE',
-          style: GoogleFonts.jetBrainsMono(
-            fontSize: 7,
-            fontWeight: FontWeight.w700,
-            color: _isOnline
-                ? accent.withValues(alpha: 0.65)
-                : Colors.white.withValues(alpha: 0.15),
-            letterSpacing: 0.5,
-          ),
-        ),
-        if (tunnelCount > 0) ...[
-          const SizedBox(width: 8),
-          Icon(Icons.alt_route_rounded,
-              size: 7, color: Colors.white.withValues(alpha: 0.12)),
-          const SizedBox(width: 2),
-          Text(
-            '$tunnelCount',
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 7,
-              color: Colors.white.withValues(alpha: 0.12),
-            ),
-          ),
-        ],
-        if (_isOnline) ...[
-          const SizedBox(width: 8),
-          Text(
-            'session active',
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 7,
-              color: Colors.white.withValues(alpha: 0.12),
-            ),
-          ),
-        ],
       ],
     );
   }
 }
 
-// ── ProfileColors ────────────────────────────────────────────────────────────
-
-/// Color palette for connection profile accent bars.
 class ProfileColors {
   ProfileColors._();
 
   static const List<Color> palette = [
-    Color(0xFF0A84FF), // Apple System Blue
-    Color(0xFFFF9F0A), // Apple System Orange
-    Color(0xFFFF453A), // Apple System Red
-    Color(0xFF30D158), // Apple System Green
-    Color(0xFFBF5AF2), // Apple System Purple
-    Color(0xFFFFD60A), // Apple System Yellow
-    Color(0xFF5E5CE6), // Apple System Indigo
-    Color(0xFF64D2FF), // Apple System Cyan
+    Color(0xFF0A84FF),
+    Color(0xFFFF9F0A),
+    Color(0xFFFF453A),
+    Color(0xFF30D158),
+    Color(0xFFBF5AF2),
+    Color(0xFFFFD60A),
+    Color(0xFF5E5CE6),
+    Color(0xFF64D2FF),
   ];
 
   static Color get(int index) => palette[index % palette.length];
 }
 
-// ── Action Button ─────────────────────────────────────────────────────────────
-
-/// A compact swipe-action icon + label button.
 class _ActionButton extends StatelessWidget {
   const _ActionButton({
     required this.icon,

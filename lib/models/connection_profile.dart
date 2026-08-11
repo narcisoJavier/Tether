@@ -41,6 +41,7 @@ class ConnectionProfile extends HiveObject {
   bool lastConnectionSuccess; // Green/red indicator on home screen
   ConnectionMethod connectionMethod; // How to reach this host
   List<TunnelConfig> tunnels; // Port forwarding configurations
+  String? environment; // 'Prod', 'Staging', or 'HomeLab'
 
   ConnectionProfile({
     required this.id,
@@ -57,6 +58,7 @@ class ConnectionProfile extends HiveObject {
     this.lastConnectionSuccess = false,
     this.connectionMethod = ConnectionMethod.direct,
     List<TunnelConfig>? tunnels,
+    this.environment,
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now(),
         tunnels = tunnels ?? [];
@@ -73,6 +75,7 @@ class ConnectionProfile extends HiveObject {
     bool? lastConnectionSuccess,
     ConnectionMethod? connectionMethod,
     List<TunnelConfig>? tunnels,
+    String? environment,
   }) {
     return ConnectionProfile(
       id: id,
@@ -90,6 +93,7 @@ class ConnectionProfile extends HiveObject {
           lastConnectionSuccess ?? this.lastConnectionSuccess,
       connectionMethod: connectionMethod ?? this.connectionMethod,
       tunnels: tunnels ?? this.tunnels,
+      environment: environment ?? this.environment,
     );
   }
 
@@ -98,4 +102,20 @@ class ConnectionProfile extends HiveObject {
 
   /// Short label for chips/cards, e.g. "My PC"
   String get shortLabel => label.isNotEmpty ? label : displayName;
+
+  /// Effective environment tag with fallback inference.
+  String get effectiveEnvironment {
+    if (environment != null && environment!.isNotEmpty) {
+      return environment!;
+    }
+    final l = label.toLowerCase();
+    final h = host.toLowerCase();
+    if (l.contains('stg') || l.contains('stage') || h.contains('stg')) {
+      return 'Staging';
+    }
+    if (l.contains('home') || l.contains('lab') || h.contains('home')) {
+      return 'HomeLab';
+    }
+    return 'Prod';
+  }
 }

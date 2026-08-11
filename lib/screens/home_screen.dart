@@ -458,61 +458,123 @@ Future<void> _showAuthUrl() async {
                           ),
                         ),
                       ),
-                      Row(
+                      Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'TAILSCALE NODE',
-                                  style: GoogleFonts.jetBrainsMono(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF8E8E93),
-                                    letterSpacing: 0.8,
-                                  ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'TAILSCALE NODE',
+                                      style: GoogleFonts.jetBrainsMono(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF8E8E93),
+                                        letterSpacing: 0.8,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _tailscaleNodeState == NodeState.running
+                                          ? '100.124.93.82'
+                                          : 'Node Inactive',
+                                      style: GoogleFonts.hankenGrotesk(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _tailscaleNodeState == NodeState.running
+                                          ? 'mbp-alpha.coral-snake.ts.net'
+                                          : 'Tap to connect WireGuard mesh',
+                                      style: GoogleFonts.jetBrainsMono(
+                                        fontSize: 11,
+                                        color: const Color(0xFF00CCFF),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _tailscaleNodeState == NodeState.running
-                                      ? '100.124.93.82'
-                                      : 'Node Inactive',
-                                  style: GoogleFonts.hankenGrotesk(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  _tailscaleNodeState == NodeState.running
-                                      ? 'mbp-alpha.coral-snake.ts.net'
-                                      : 'Tap to connect WireGuard mesh',
-                                  style: GoogleFonts.jetBrainsMono(
-                                    fontSize: 11,
-                                    color: const Color(0xFF00CCFF),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: const Color(0xFF262A32),
-                              border: Border.all(
-                                color: const Color(0xFF00CCFF).withValues(alpha: 0.3),
                               ),
-                            ),
-                            child: const Icon(
-                              Icons.lan_rounded,
-                              color: Color(0xFF00CCFF),
-                              size: 20,
-                            ),
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: const Color(0xFF262A32),
+                                  border: Border.all(
+                                    color: const Color(0xFF00CCFF).withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.lan_rounded,
+                                  color: Color(0xFF00CCFF),
+                                  size: 20,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'ROUTING',
+                                      style: GoogleFonts.jetBrainsMono(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF8E8E93),
+                                        letterSpacing: 0.6,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _tailscaleNodeState == NodeState.running
+                                          ? 'Subnet + Exit'
+                                          : 'Direct',
+                                      style: GoogleFonts.jetBrainsMono(
+                                        fontSize: 12,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'LAST SEEN',
+                                      style: GoogleFonts.jetBrainsMono(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF8E8E93),
+                                        letterSpacing: 0.6,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _tailscaleNodeState == NodeState.running
+                                          ? 'Just now'
+                                          : 'Offline',
+                                      style: GoogleFonts.jetBrainsMono(
+                                        fontSize: 12,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
