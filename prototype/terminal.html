@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+  <title>Tether / OPA - Tabbed Terminal</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Hanken+Grotesk:wght@400;600;700&display=swap"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "oled-black": "#000000",
+            "neon-blue-glow": "#00CCFF",
+            "surface-0": "#1C1C1E",
+            "surface-1": "#2C2C2E",
+            "surface-2": "#3A3A3C",
+            "pip-success": "#32D74B",
+            "pip-warning": "#FFD60A",
+            "accent-blue": "#0A84FF",
+            "accent-amber": "#FF9F0A"
+          },
+          fontFamily: {
+            mono: ["JetBrains Mono", "monospace"],
+            sans: ["Hanken Grotesk", "sans-serif"]
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      background-color: #000000;
+      color: #E0E2ED;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .glass-header {
+      background: rgba(28, 28, 30, 0.9);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 0.8px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-keybar {
+      background: rgba(28, 28, 30, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-top: 0.8px solid rgba(255, 255, 255, 0.08);
+    }
+  </style>
+</head>
+<body class="bg-oled-black min-h-screen flex flex-col justify-between overflow-hidden">
+  
+  <!-- Top 36px OLED Glass Unified Tab Header -->
+  <header class="glass-header h-10 px-2 flex items-center justify-between z-50">
+    <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1">
+      
+      <!-- Back Arrow -->
+      <button class="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-white/70 hover:bg-white/10 transition-colors">
+        <span class="material-symbols-outlined text-sm">arrow_back</span>
+      </button>
+
+      <!-- Active Tab Chip 1 -->
+      <div class="flex items-center gap-2 h-7 px-2.5 rounded-lg bg-surface-1 border border-accent-blue/50 text-white shadow-[0_0_8px_rgba(10,132,255,0.2)]">
+        <div class="w-1.5 h-1.5 rounded-full bg-pip-success shadow-[0_0_4px_#32D74B]"></div>
+        <span class="text-xs font-semibold">prowl-redis-01</span>
+        <button class="text-white/60 hover:text-white ml-1">
+          <span class="material-symbols-outlined text-xs">close</span>
+        </button>
+      </div>
+
+      <!-- Inactive Tab Chip 2 -->
+      <div class="flex items-center gap-2 h-7 px-2.5 rounded-lg bg-surface-0/40 border border-white/5 text-white/50 hover:text-white/80 transition-colors">
+        <div class="w-1.5 h-1.5 rounded-full bg-pip-warning"></div>
+        <span class="text-xs">api-gateway-stg</span>
+        <button class="text-white/40 hover:text-white ml-1">
+          <span class="material-symbols-outlined text-xs">close</span>
+        </button>
+      </div>
+
+      <!-- Quick Commands ⚡ Button -->
+      <button class="w-7 h-7 rounded-lg bg-accent-amber/10 border border-accent-amber/30 text-accent-amber flex items-center justify-center hover:bg-accent-amber/20 transition-colors ml-1">
+        <span class="material-symbols-outlined text-sm">bolt</span>
+      </button>
+
+      <!-- New Tab + Button -->
+      <button class="w-7 h-7 rounded-lg bg-white/5 text-white/70 flex items-center justify-center hover:bg-white/10 transition-colors">
+        <span class="material-symbols-outlined text-sm">add</span>
+      </button>
+    </div>
+
+    <!-- Terminal Grid Dimensions -->
+    <div class="px-2 py-0.5 rounded bg-white/5 text-[10px] text-white/40 font-mono ml-2">
+      76×66
+    </div>
+  </header>
+
+  <!-- VT100 Terminal Output Area -->
+  <main class="flex-1 p-3 font-mono text-xs leading-relaxed text-green-400 overflow-y-auto">
+    <div class="text-white/40 mb-2">Connecting to prowl-redis-01 (10.0.4.12:22)...</div>
+    <div class="text-white/70 mb-2">Welcome to Ubuntu 24.04 LTS (GNU/Linux 6.8.0-31-generic x86_64)</div>
+    <div class="text-white/50 mb-3">* Documentation:  https://help.ubuntu.com</div>
+    
+    <div class="text-emerald-400">uznir@prowl-redis-01:~$ <span class="text-white">docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"</span></div>
+    
+    <div class="my-2 text-white/90">
+      NAMES                STATUS                  PORTS<br/>
+      redis-primary        Up 14 hours (healthy)   0.0.0.0:6379->6379/tcp<br/>
+      redis-sentinel       Up 14 hours             0.0.0.0:26379->26379/tcp<br/>
+      metrics-exporter     Up 3 days               0.0.0.0:9121->9121/tcp
+    </div>
+
+    <div class="text-emerald-400 mt-4 flex items-center">
+      <span>uznir@prowl-redis-01:~$</span>
+      <span class="w-2 h-4 bg-accent-blue ml-1.5 animate-pulse inline-block"></span>
+    </div>
+  </main>
+
+  <!-- Bottom Touch Keyboard Bar -->
+  <footer class="glass-keybar h-11 px-2 flex items-center justify-between text-xs font-mono">
+    <button class="px-2 py-1 bg-accent-amber/20 border border-accent-amber/40 text-accent-amber rounded font-bold">⚡</button>
+    <button class="px-2 py-1 bg-white/10 text-white rounded">TAB</button>
+    <button class="px-2 py-1 bg-white/10 text-white rounded">ESC</button>
+    <button class="px-2 py-1 bg-white/10 text-white rounded">↑</button>
+    <button class="px-2 py-1 bg-white/10 text-white rounded">↓</button>
+    <button class="px-2 py-1 bg-white/10 text-white rounded">←</button>
+    <button class="px-2 py-1 bg-white/10 text-white rounded">→</button>
+    <button class="px-2 py-1 bg-red-500/20 border border-red-500/40 text-red-400 rounded font-bold">CTRL</button>
+    <button class="px-2 py-1 bg-white/10 text-white rounded">/</button>
+    <button class="px-2 py-1 bg-white/10 text-white rounded">|</button>
+    <button class="px-2 py-1 bg-white/10 text-white rounded">-</button>
+  </footer>
+
+</body>
+</html>
