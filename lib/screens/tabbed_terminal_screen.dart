@@ -421,6 +421,18 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
       _createTabNow(next.profileId, initialCommand: next.initialCommand);
     });
 
+    // Check for pending tab request created before ref.listen was mounted (e.g. fresh launch)
+    final initialPendingTab = ref.read(pendingTerminalTabProvider);
+    if (initialPendingTab != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && ref.read(pendingTerminalTabProvider) == initialPendingTab) {
+          ref.read(pendingTerminalTabProvider.notifier).state = null;
+          _createTabNow(initialPendingTab.profileId,
+              initialCommand: initialPendingTab.initialCommand);
+        }
+      });
+    }
+
     // Listen for pending quick commands targeting existing tabs.
     ref.listen(pendingQuickCommandProvider, (prev, PendingTabCommand? next) {
       if (next == null || identical(next, prev)) return;
@@ -439,6 +451,24 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
         }
       });
     });
+
+    // Check for pending quick command created before ref.listen was mounted
+    final initialPendingCmd = ref.read(pendingQuickCommandProvider);
+    if (initialPendingCmd != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && ref.read(pendingQuickCommandProvider) == initialPendingCmd) {
+          ref.read(pendingQuickCommandProvider.notifier).state = null;
+          final tab = _tabs[initialPendingCmd.tabId];
+          if (tab != null && !tab.disposed) {
+            if (tab.shellStarted) {
+              tab.terminal.textInput(initialPendingCmd.command);
+            } else {
+              tab.initialCommand = initialPendingCmd.command;
+            }
+          }
+        }
+      });
+    }
 
     final mq = MediaQuery.of(context);
     final size = mq.size;
