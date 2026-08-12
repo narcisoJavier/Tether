@@ -20,10 +20,7 @@ enum SshConnectionState {
 
 /// An active SSH session wrapping dartssh2's SSHSession.
 class SshSession {
-  SshSession({
-    required this.client,
-    required this.session,
-  });
+  SshSession({required this.client, required this.session});
 
   final dartssh2.SSHClient client;
   final dartssh2.SSHSession session;
@@ -79,7 +76,8 @@ class SshService extends ChangeNotifier {
     try {
       // Use the provided socket (e.g. from Tailscale) or create a direct
       // TCP connection through dartssh2's native socket.
-      final sock = socket ??
+      final sock =
+          socket ??
           await dartssh2.SSHSocket.connect(
             profile.host,
             profile.port,
@@ -90,10 +88,12 @@ class SshService extends ChangeNotifier {
       // multiple keys, so fromPem returns a List<SSHKeyPair>.
       final List<dartssh2.SSHKeyPair>? identities =
           (privateKey != null && privateKey.trim().isNotEmpty)
-              ? dartssh2.SSHKeyPair.fromPem(privateKey)
-              : null;
+          ? dartssh2.SSHKeyPair.fromPem(privateKey)
+          : null;
 
-      final effectivePassword = password ?? profile.password;
+      final effectivePassword = (password != null && password.isNotEmpty)
+          ? password
+          : profile.password;
 
       // SSHClient handles authentication automatically:
       //  - key auth via `identities`
@@ -103,9 +103,10 @@ class SshService extends ChangeNotifier {
         username: profile.username,
         keepAliveInterval: keepalive ?? AppConstants.defaultKeepAlive,
         identities: identities ?? const [],
-        onPasswordRequest: effectivePassword == null
-            ? null
-            : () => effectivePassword,
+        onPasswordRequest:
+            (effectivePassword != null && effectivePassword.isNotEmpty)
+            ? () => effectivePassword
+            : null,
       );
 
       _state = SshConnectionState.authenticating;
@@ -544,7 +545,9 @@ class ActiveTunnel {
 ///
 /// Each profile gets its own [SshService] keyed by `profileId`, enabling
 /// multiple independent SSH sessions.
-final sshServiceProvider =
-    ChangeNotifierProvider.family<SshService, String>((ref, profileId) {
+final sshServiceProvider = ChangeNotifierProvider.family<SshService, String>((
+  ref,
+  profileId,
+) {
   return SshService();
 });

@@ -30,7 +30,7 @@ class KeyService extends ChangeNotifier {
   /// Returns the created [StoredKeyPair] with the public key in OpenSSH format.
   /// The private key is stored securely in the device keystore.
   Future<StoredKeyPair> generateEd25519({required String label}) async {
-    final material = SshKeyEncoder.generateEd25519(comment: 'opa-$label');
+    final material = SshKeyEncoder.generateEd25519(comment: 'tether-$label');
 
     // Sanity check: make sure dartssh2 can parse what we produced.
     dartssh2.SSHKeyPair.fromPem(material.privateKeyPem);
@@ -52,8 +52,7 @@ class KeyService extends ChangeNotifier {
     required String privateKeyPem,
   }) async {
     // Validate + parse via dartssh2 (throws on malformed key).
-    final parsedPairs =
-        dartssh2.SSHKeyPair.fromPem(privateKeyPem.trim());
+    final parsedPairs = dartssh2.SSHKeyPair.fromPem(privateKeyPem.trim());
     if (parsedPairs.isEmpty) {
       throw const FormatException('No keys found in the provided PEM.');
     }
@@ -66,8 +65,7 @@ class KeyService extends ChangeNotifier {
 
     // Determine key type from the algorithm identifier.
     final type = parsed.type.toLowerCase();
-    final keyType =
-        type.contains('rsa') ? KeyType.rsa : KeyType.ed25519;
+    final keyType = type.contains('rsa') ? KeyType.rsa : KeyType.ed25519;
 
     return _storeKey(
       label: label,
@@ -108,7 +106,15 @@ class KeyService extends ChangeNotifier {
 
   /// Retrieve the private key for a given key pair ID.
   Future<String?> getPrivateKey(String keyId) async {
-    return _secureStorage.read(key: 'opa_key_$keyId');
+    final current = await _secureStorage.read(
+      key: '${AppConstants.secureStoragePrefix}$keyId',
+    );
+    if (current != null) return current;
+
+    // Preserve access to keys created before the OPA → Tether rename.
+    return _secureStorage.read(
+      key: '${AppConstants.legacySecureStoragePrefix}$keyId',
+    );
   }
 
   /// Get a specific key by ID.
@@ -119,7 +125,12 @@ class KeyService extends ChangeNotifier {
   /// Delete a stored key pair (both metadata and private key).
   Future<void> deleteKey(String keyId) async {
     await _keysBox.delete(keyId);
-    await _secureStorage.delete(key: 'opa_key_$keyId');
+    await _secureStorage.delete(
+      key: '${AppConstants.secureStoragePrefix}$keyId',
+    );
+    await _secureStorage.delete(
+      key: '${AppConstants.legacySecureStoragePrefix}$keyId',
+    );
     notifyListeners();
   }
 

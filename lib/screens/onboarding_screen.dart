@@ -172,7 +172,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             const SizedBox(height: 48),
             // Title
             Text(
-              'OPA',
+              'Tether',
               style: GoogleFonts.inter(
                 fontSize: 48,
                 fontWeight: FontWeight.w800,
@@ -182,7 +182,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'OpenSSH Pocket Agent',
+              'Pocket SSH & Mesh Terminal',
               style: GoogleFonts.inter(
                 fontSize: 16,
                 color: AppConstants.primaryGreen.withValues(alpha: 0.8),
@@ -283,15 +283,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color.withValues(alpha: 0.1),
-            border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
-          ),
-          child: Icon(icon, color: color, size: 28),
-        )
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color.withValues(alpha: 0.1),
+                border: Border.all(
+                  color: color.withValues(alpha: 0.3),
+                  width: 1.5,
+                ),
+              ),
+              child: Icon(icon, color: color, size: 28),
+            )
             .animate()
             .fadeIn(duration: 500.ms, delay: delay, curve: Curves.easeOut)
             .scale(
@@ -302,16 +305,25 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
         const SizedBox(width: 16),
         Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: color.withValues(alpha: 0.9),
-          ),
-        )
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: color.withValues(alpha: 0.9),
+              ),
+            )
             .animate()
-            .fadeIn(duration: 400.ms, delay: delay + 100.ms, curve: Curves.easeOut)
-            .slideX(begin: 0.1, end: 0, duration: 400.ms, delay: delay + 100.ms),
+            .fadeIn(
+              duration: 400.ms,
+              delay: delay + 100.ms,
+              curve: Curves.easeOut,
+            )
+            .slideX(
+              begin: 0.1,
+              end: 0,
+              duration: 400.ms,
+              delay: delay + 100.ms,
+            ),
       ],
     );
   }
@@ -339,21 +351,21 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           children: [
             // Key + shield icon
             Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppConstants.primaryGreen.withValues(alpha: 0.08),
-                border: Border.all(
-                  color: AppConstants.primaryGreen.withValues(alpha: 0.2),
-                ),
-              ),
-              child: const Icon(
-                Icons.vpn_key_rounded,
-                size: 44,
-                color: AppConstants.primaryGreen,
-              ),
-            )
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppConstants.primaryGreen.withValues(alpha: 0.08),
+                    border: Border.all(
+                      color: AppConstants.primaryGreen.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.vpn_key_rounded,
+                    size: 44,
+                    color: AppConstants.primaryGreen,
+                  ),
+                )
                 .animate()
                 .fadeIn(duration: 600.ms, curve: Curves.easeOut)
                 .scale(
@@ -371,9 +383,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 height: 1.3,
               ),
               textAlign: TextAlign.center,
-            )
-                .animate()
-                .fadeIn(duration: 500.ms, delay: 200.ms),
+            ).animate().fadeIn(duration: 500.ms, delay: 200.ms),
             const SizedBox(height: 16),
             Text(
               'Private keys are encrypted and stored in your device\'s '
@@ -384,41 +394,41 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 height: 1.6,
               ),
               textAlign: TextAlign.center,
-            )
-                .animate()
-                .fadeIn(duration: 500.ms, delay: 300.ms),
+            ).animate().fadeIn(duration: 500.ms, delay: 300.ms),
             const SizedBox(height: 24),
             // Ed25519 badge
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppConstants.primaryGreen.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: AppConstants.primaryGreen.withValues(alpha: 0.2),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.star_rounded,
-                    size: 14,
-                    color: AppConstants.primaryGreen,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Ed25519 Recommended',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppConstants.primaryGreen,
+                  decoration: BoxDecoration(
+                    color: AppConstants.primaryGreen.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppConstants.primaryGreen.withValues(alpha: 0.2),
                     ),
                   ),
-                ],
-              ),
-            )
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.star_rounded,
+                        size: 14,
+                        color: AppConstants.primaryGreen,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Ed25519 Recommended',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppConstants.primaryGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
                 .animate()
                 .fadeIn(duration: 400.ms, delay: 500.ms, curve: Curves.easeOut)
                 .scale(
@@ -444,21 +454,21 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           children: [
             // Lightning bolt + terminal
             Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFFFF9F0A).withValues(alpha: 0.08),
-                border: Border.all(
-                  color: const Color(0xFFFF9F0A).withValues(alpha: 0.2),
-                ),
-              ),
-              child: const Icon(
-                Icons.flash_on_rounded,
-                size: 44,
-                color: Color(0xFFFF9F0A),
-              ),
-            )
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFFF9F0A).withValues(alpha: 0.08),
+                    border: Border.all(
+                      color: const Color(0xFFFF9F0A).withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.flash_on_rounded,
+                    size: 44,
+                    color: Color(0xFFFF9F0A),
+                  ),
+                )
                 .animate()
                 .fadeIn(duration: 600.ms, curve: Curves.easeOut)
                 .scale(
@@ -476,9 +486,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 height: 1.3,
               ),
               textAlign: TextAlign.center,
-            )
-                .animate()
-                .fadeIn(duration: 500.ms, delay: 200.ms),
+            ).animate().fadeIn(duration: 500.ms, delay: 200.ms),
             const SizedBox(height: 16),
             Text(
               'Save frequently-run scripts for quick access. '
@@ -489,55 +497,53 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 height: 1.6,
               ),
               textAlign: TextAlign.center,
-            )
-                .animate()
-                .fadeIn(duration: 500.ms, delay: 300.ms),
+            ).animate().fadeIn(duration: 500.ms, delay: 300.ms),
             const SizedBox(height: 24),
             // Terminal command preview
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppConstants.surfaceDark.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppConstants.border0,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '\$ python ~/agents/start.py --auto',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 12,
-                      color: AppConstants.primaryGreen.withValues(alpha: 0.8),
-                    ),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppConstants.surfaceDark.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppConstants.border0),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppConstants.accentAmber,
+                      Text(
+                        '\$ python ~/agents/start.py --auto',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 12,
+                          color: AppConstants.primaryGreen.withValues(
+                            alpha: 0.8,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Agent running on port 8080',
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 11,
-                          color: Colors.white.withValues(alpha: 0.4),
-                        ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppConstants.accentAmber,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Agent running on port 8080',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 11,
+                              color: Colors.white.withValues(alpha: 0.4),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            )
+                )
                 .animate()
                 .fadeIn(duration: 500.ms, delay: 500.ms, curve: Curves.easeOut)
                 .slideY(begin: 0.1, end: 0, duration: 500.ms, delay: 500.ms),

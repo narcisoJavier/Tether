@@ -14,6 +14,7 @@ class AppConstants {
 
   // Secure storage keys prefix
   static const String secureStoragePrefix = 'tether_key_';
+  static const String legacySecureStoragePrefix = 'opa_key_';
 
   // Onboarding
   static const String onboardingCompleteKey = 'tether_onboarding_complete';

@@ -14,7 +14,7 @@ class TailscaleSSHSocket extends SSHSocket {
   final _TailscaleSinkAdapter _sinkAdapter;
 
   TailscaleSSHSocket(this._connection)
-      : _sinkAdapter = _TailscaleSinkAdapter(_connection.output);
+    : _sinkAdapter = _TailscaleSinkAdapter(_connection.output);
 
   @override
   Stream<Uint8List> get stream => _connection.input;
@@ -43,8 +43,7 @@ class _TailscaleSinkAdapter implements StreamSink<List<int>> {
   Future<void> add(List<int> data) => _output.write(data);
 
   @override
-  Future<void> addStream(Stream<List<int>> stream) =>
-      _output.writeAll(stream);
+  Future<void> addStream(Stream<List<int>> stream) => _output.writeAll(stream);
 
   @override
   void addError(Object error, [StackTrace? stackTrace]) {

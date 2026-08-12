@@ -14,8 +14,7 @@ class PresetEditorScreen extends ConsumerStatefulWidget {
   const PresetEditorScreen({super.key});
 
   @override
-  ConsumerState<PresetEditorScreen> createState() =>
-      _PresetEditorScreenState();
+  ConsumerState<PresetEditorScreen> createState() => _PresetEditorScreenState();
 }
 
 class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen> {
@@ -72,14 +71,15 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.extension_rounded,
-              size: 56,
-              color: Colors.white.withValues(alpha: 0.1),
-            )
+                  Icons.extension_rounded,
+                  size: 56,
+                  color: Colors.white.withValues(alpha: 0.1),
+                )
                 .animate(onPlay: (c) => c.repeat())
                 .shimmer(
-                    duration: 2500.ms,
-                    color: const Color(0xFFFFAB40).withValues(alpha: 0.08))
+                  duration: 2500.ms,
+                  color: const Color(0xFFFFAB40).withValues(alpha: 0.08),
+                )
                 .scale(
                   begin: const Offset(1, 1),
                   end: const Offset(1.02, 1.02),
@@ -278,112 +278,117 @@ class _PresetEditorScreenState extends ConsumerState<PresetEditorScreen> {
 
   Future<void> _showPresetEditor({QuickCommand? preset}) async {
     final labelController = TextEditingController(text: preset?.label ?? '');
-    final commandController =
-        TextEditingController(text: preset?.command ?? '');
+    final commandController = TextEditingController(
+      text: preset?.command ?? '',
+    );
     var selectedColor = preset?.colorIndex ?? 0;
 
-    final result = await showDialog<({String label, String command, int color})>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-          ),
-          backgroundColor: AppConstants.surfaceDark,
-          title: Text(
-            preset != null ? 'Edit Preset' : 'New Preset',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: labelController,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Label',
-                    hintText: 'e.g. Deploy App',
-                  ),
-                  style: GoogleFonts.inter(fontSize: 13),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: commandController,
-                  decoration: const InputDecoration(
-                    labelText: 'Command',
-                    hintText: 'e.g. ./deploy.sh',
-                  ),
-                  style: GoogleFonts.jetBrainsMono(fontSize: 13),
-                  minLines: 2,
-                  maxLines: 4,
-                ),
-                const SizedBox(height: 16),
-                Row(
+    final result =
+        await showDialog<({String label, String command, int color})>(
+          context: context,
+          builder: (ctx) => StatefulBuilder(
+            builder: (context, setDialogState) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              backgroundColor: AppConstants.surfaceDark,
+              title: Text(
+                preset != null ? 'Edit Preset' : 'New Preset',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      'Accent',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: Colors.white.withValues(alpha: 0.5),
+                    TextField(
+                      controller: labelController,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Label',
+                        hintText: 'e.g. Deploy App',
                       ),
+                      style: GoogleFonts.inter(fontSize: 13),
                     ),
-                    const SizedBox(width: 12),
-                    ...List.generate(ProfileColors.palette.length, (i) {
-                      final c = ProfileColors.palette[i];
-                      return GestureDetector(
-                        onTap: () =>
-                            setDialogState(() => selectedColor = i),
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          margin: const EdgeInsets.only(right: 6),
-                          decoration: BoxDecoration(
-                            color: c,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: selectedColor == i
-                                  ? Colors.white
-                                  : Colors.transparent,
-                              width: 2,
-                            ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: commandController,
+                      decoration: const InputDecoration(
+                        labelText: 'Command',
+                        hintText: 'e.g. ./deploy.sh',
+                      ),
+                      style: GoogleFonts.jetBrainsMono(fontSize: 13),
+                      minLines: 2,
+                      maxLines: 4,
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Text(
+                          'Accent',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.5),
                           ),
-                          child: selectedColor == i
-                              ? const Icon(Icons.check_rounded,
-                                  size: 16, color: Colors.black87)
-                              : null,
                         ),
-                      );
-                    }),
+                        const SizedBox(width: 12),
+                        ...List.generate(ProfileColors.palette.length, (i) {
+                          final c = ProfileColors.palette[i];
+                          return GestureDetector(
+                            onTap: () =>
+                                setDialogState(() => selectedColor = i),
+                            child: Container(
+                              width: 28,
+                              height: 28,
+                              margin: const EdgeInsets.only(right: 6),
+                              decoration: BoxDecoration(
+                                color: c,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: selectedColor == i
+                                      ? Colors.white
+                                      : Colors.transparent,
+                                  width: 2,
+                                ),
+                              ),
+                              child: selectedColor == i
+                                  ? const Icon(
+                                      Icons.check_rounded,
+                                      size: 16,
+                                      color: Colors.black87,
+                                    )
+                                  : null,
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
                   ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final label = labelController.text.trim();
+                    final command = commandController.text.trim();
+                    if (label.isEmpty || command.isEmpty) return;
+                    Navigator.pop(ctx, (
+                      label: label,
+                      command: command,
+                      color: selectedColor,
+                    ));
+                  },
+                  child: Text(preset != null ? 'Save' : 'Create'),
                 ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final label = labelController.text.trim();
-                final command = commandController.text.trim();
-                if (label.isEmpty || command.isEmpty) return;
-                Navigator.pop(ctx, (
-                  label: label,
-                  command: command,
-                  color: selectedColor,
-                ));
-              },
-              child: Text(preset != null ? 'Save' : 'Create'),
-            ),
-          ],
-        ),
-      ),
-    );
+        );
 
     if (result == null) return;
 

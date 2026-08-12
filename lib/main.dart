@@ -52,9 +52,9 @@ void main() async {
   // (Dart try-catch cannot catch signal-level crashes).
   TailscaleService? tailscaleService;
   try {
-    const platform = MethodChannel('com.opa.app/cpu_abi');
-    final abis = (await platform.invokeMethod('getSupportedAbis'))
-        as List<dynamic>?;
+    const platform = MethodChannel('dev.tether.app/cpu_abi');
+    final abis =
+        (await platform.invokeMethod('getSupportedAbis')) as List<dynamic>?;
     final isX86_64 = abis?.any((a) => a == 'x86_64') ?? false;
 
     if (isX86_64) {
@@ -84,7 +84,7 @@ void main() async {
         if (tailscaleService != null)
           tailscaleServiceProvider.overrideWithValue(tailscaleService),
       ],
-      child: const OpaApp(),
+      child: const TetherApp(),
     ),
   );
 }
@@ -93,15 +93,15 @@ void main() async {
 ///
 /// The biometric gate is now handled by GoRouter redirect (see app_router.dart),
 /// so this widget just builds the MaterialApp.router.
-class OpaApp extends ConsumerWidget {
-  const OpaApp({super.key});
+class TetherApp extends ConsumerWidget {
+  const TetherApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(
-      title: 'OPA',
+      title: 'Tether',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
       darkTheme: AppTheme.dark(),

@@ -12,9 +12,9 @@ import '../services/ssh_service.dart';
 import '../services/tailscale_provider.dart';
 import '../services/tailscale_ssh_socket.dart';
 import '../utils/constants.dart';
-import '../widgets/connection_card.dart';
+import '../widgets/gradient_scaffold.dart';
 
-/// Screen for creating or editing a connection profile.
+/// Screen for creating or editing a connection profile matching the HTML design spec.
 class ProfileEditorScreen extends ConsumerStatefulWidget {
   const ProfileEditorScreen({super.key, this.profileId});
 
@@ -40,12 +40,19 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   bool _isTesting = false;
   bool _obscurePassword = true;
   final _authKeyController = TextEditingController();
-  bool _obscureAuthKey = true;
   ConnectionMethod _connectionMethod = ConnectionMethod.direct;
-  String _environment = 'Prod';
+  String _environment = 'PROD';
 
   bool get _isEditing => widget.profileId != null;
   ConnectionProfile? _existingProfile;
+
+  // Swatch colors matching the HTML spec
+  static const List<Color> _accentColors = [
+    Color(0xFFFF453A), // Coral Red
+    Color(0xFFFFD60A), // Yellow
+    Color(0xFF32D74B), // Green
+    Color(0xFF00CCFF), // Cyan
+  ];
 
   @override
   void initState() {
@@ -73,10 +80,9 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       _selectedKeyId = _existingProfile!.keyId;
       _colorIndex = _existingProfile!.colorIndex;
       _connectionMethod = _existingProfile!.connectionMethod;
-      _environment = _existingProfile!.effectiveEnvironment;
+      _environment = _existingProfile!.effectiveEnvironment.toUpperCase();
     });
 
-    // Load password from secure storage (falls back to legacy Hive field).
     final stored = await ref
         .read(profileStorageProvider)
         .getPassword(_existingProfile!.id);
@@ -110,11 +116,41 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   Widget build(BuildContext context) {
     final keys = ref.watch(keyServiceProvider).listKeys();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _isEditing ? 'Edit Connection' : 'New Connection',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+    return GradientScaffold(
+      appBar: GlassAppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          onPressed: () => context.pop(),
+        ),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C2027),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFF00CCFF).withValues(alpha: 0.3),
+                ),
+              ),
+              child: const Icon(
+                Icons.terminal_rounded,
+                size: 16,
+                color: Color(0xFF00CCFF),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'PROFILE',
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ],
         ),
         actions: [
           if (_isEditing)
@@ -123,290 +159,486 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
               tooltip: 'Delete',
               onPressed: _deleteProfile,
             ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 8),
         ],
       ),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
           children: [
-            // Color picker
-            _buildColorPicker(),
-            const SizedBox(height: 24),
-
-            _buildSectionLabel('Connection'),
-            const SizedBox(height: 12),
-
-            // Label
-            TextFormField(
-              controller: _labelController,
-              decoration: const InputDecoration(
-                labelText: 'Label',
-                hintText: 'My PC',
-                prefixIcon: Icon(Icons.label_outline_rounded),
+            // ── Page Header ──
+            Text(
+              _isEditing ? 'Edit Node' : 'New Node',
+              style: GoogleFonts.hankenGrotesk(
+                fontSize: 28,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
               ),
-              textCapitalization: TextCapitalization.words,
-              validator: (v) => v?.trim().isEmpty ?? true ? 'Required' : null,
             ),
-            const SizedBox(height: 14),
-
-            // Host
-            TextFormField(
-              controller: _hostController,
-              decoration: InputDecoration(
-                labelText: 'Host',
-                hintText: _connectionMethod == ConnectionMethod.tailscale
-                    ? '100.x.x.x or hostname.tailnet.ts.net'
-                    : '192.168.1.100',
-                prefixIcon: const Icon(Icons.dns_rounded),
+            const SizedBox(height: 4),
+            Text(
+              'Configure connection parameters for a new SSH target.',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: const Color(0xFF8E8E93),
               ),
-              keyboardType: TextInputType.text,
-              validator: (v) => v?.trim().isEmpty ?? true ? 'Required' : null,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 20),
 
-            // Port + Username row
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TextFormField(
-                    controller: _portController,
-                    decoration: const InputDecoration(
-                      labelText: 'Port',
-                      hintText: '22',
-                      prefixIcon: Icon(Icons.numbers_rounded),
-                    ),
-                    keyboardType: TextInputType.number,
-                    validator: (v) {
-                      final port = int.tryParse(v ?? '');
-                      if (port == null || port < 1 || port > 65535) {
-                        return 'Invalid';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 3,
-                  child: TextFormField(
-                    controller: _usernameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Username',
-                      hintText: 'root',
-                      prefixIcon: Icon(Icons.person_outline_rounded),
-                    ),
+            // ── Card 1: Connection Parameters ──
+            _buildCardContainer(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionHeader(Icons.dns_rounded, 'CONNECTION'),
+                  const SizedBox(height: 16),
+
+                  // Profile Label
+                  _buildInputLabel('Profile Label'),
+                  const SizedBox(height: 6),
+                  _buildTextField(
+                    controller: _labelController,
+                    hintText: 'e.g., Production DB',
                     validator: (v) =>
                         v?.trim().isEmpty ?? true ? 'Required' : null,
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(height: 14),
 
-            const SizedBox(height: 20),
-            _buildSectionLabel('Environment Tag'),
-            const SizedBox(height: 10),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(
-                  value: 'Prod',
-                  label: Text('Prod 🔴'),
-                ),
-                ButtonSegment(
-                  value: 'Staging',
-                  label: Text('Staging 🟡'),
-                ),
-                ButtonSegment(
-                  value: 'HomeLab',
-                  label: Text('HomeLab 🟢'),
-                ),
-              ],
-              selected: {_environment},
-              onSelectionChanged: (s) => setState(() => _environment = s.first),
-            ),
+                  // Host / IP & Port Row
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildInputLabel('Host / IP'),
+                            const SizedBox(height: 6),
+                            _buildTextField(
+                              controller: _hostController,
+                              hintText: '192.168.1.100',
+                              validator: (v) =>
+                                  v?.trim().isEmpty ?? true ? 'Required' : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildInputLabel('Port'),
+                            const SizedBox(height: 6),
+                            _buildTextField(
+                              controller: _portController,
+                              hintText: '22',
+                              textAlign: TextAlign.center,
+                              keyboardType: TextInputType.number,
+                              validator: (v) {
+                                final p = int.tryParse(v ?? '');
+                                if (p == null || p < 1 || p > 65535) {
+                                  return 'Invalid';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
 
-            const SizedBox(height: 28),
-            _buildSectionLabel('Authentication'),
-            const SizedBox(height: 12),
-
-            // Auth type selector
-            SegmentedButton<AuthType>(
-              style: const ButtonStyle(
-                // Shrink icon + label so icon + 'Password'/'Key'/'Both' fit
-                // within a third-width segment without overflowing.
-                iconSize: WidgetStatePropertyAll(14),
-                textStyle: WidgetStatePropertyAll(
-                  TextStyle(fontSize: 12),
-                ),
-                padding: WidgetStatePropertyAll(
-                  EdgeInsets.symmetric(horizontal: 8),
-                ),
+                  // Username
+                  _buildInputLabel('Username'),
+                  const SizedBox(height: 6),
+                  _buildTextField(
+                    controller: _usernameController,
+                    hintText: 'root',
+                    validator: (v) =>
+                        v?.trim().isEmpty ?? true ? 'Required' : null,
+                  ),
+                ],
               ),
-              segments: const [
-                ButtonSegment(
-                  value: AuthType.password,
-                  label: Text('Password'),
-                  icon: Icon(Icons.password_rounded, size: 14),
-                ),
-                ButtonSegment(
-                  value: AuthType.publicKey,
-                  label: Text('Key'),
-                  icon: Icon(Icons.vpn_key_rounded, size: 14),
-                ),
-                ButtonSegment(
-                  value: AuthType.passwordAndPublicKey,
-                  label: Text('Both'),
-                  icon: Icon(Icons.lock_rounded, size: 14),
-                ),
-              ],
-              selected: {_authType},
-              onSelectionChanged: (selection) {
-                setState(() => _authType = selection.first);
-              },
             ),
             const SizedBox(height: 16),
 
-            // Password field
-            if (_authType == AuthType.password ||
-                _authType == AuthType.passwordAndPublicKey)
-              TextFormField(
-                controller: _passwordController,
-                obscureText: _obscurePassword,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  prefixIcon: const Icon(Icons.lock_outline_rounded),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off_rounded
-                          : Icons.visibility_rounded,
-                    ),
-                    onPressed: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
-                  ),
-                ),
-              ),
-
-            // Key picker
-            if (_authType == AuthType.publicKey ||
-                _authType == AuthType.passwordAndPublicKey) ...[
-              const SizedBox(height: 14),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedKeyId,
-                decoration: InputDecoration(
-                  labelText: 'SSH Key',
-                  prefixIcon: const Icon(Icons.vpn_key_rounded),
-                  suffixIcon: keys.isEmpty
-                      ? null
-                      : IconButton(
-                          icon: const Icon(Icons.add_rounded, size: 18),
-                          tooltip: 'Generate a key',
-                          onPressed: () => context.push('/keys'),
+            // ── Card 2: Authentication Method ──
+            _buildCardContainer(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildSectionHeader(Icons.vpn_key_rounded, 'AUTH METHOD'),
+                      // Segmented Control
+                      Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10131B),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                ),
-                items: [
-                  if (keys.isEmpty)
-                    const DropdownMenuItem(
-                      value: null,
-                      child: Text('No keys — generate one first'),
-                    ),
-                  ...keys.map(
-                    (key) => DropdownMenuItem(
-                      value: key.id,
-                      child: Text(key.fingerprint,
-                          overflow: TextOverflow.ellipsis),
-                    ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildAuthSegment(
+                              label: 'PASSWORD',
+                              isSelected: _authType == AuthType.password,
+                              onTap: () =>
+                                  setState(() => _authType = AuthType.password),
+                            ),
+                            _buildAuthSegment(
+                              label: 'KEY PAIR',
+                              isSelected: _authType == AuthType.publicKey,
+                              onTap: () => setState(
+                                () => _authType = AuthType.publicKey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 16),
+
+                  if (_authType == AuthType.password) ...[
+                    _buildInputLabel('Password'),
+                    const SizedBox(height: 6),
+                    _buildTextField(
+                      controller: _passwordController,
+                      hintText: '••••••••••••',
+                      obscureText: _obscurePassword,
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_rounded
+                              : Icons.visibility_off_rounded,
+                          color: const Color(0xFF8E8E93),
+                          size: 20,
+                        ),
+                        onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    _buildInputLabel('SSH Key'),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10131B),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.05),
+                        ),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedKeyId,
+                          hint: Text(
+                            keys.isEmpty
+                                ? 'No keys — generate one first'
+                                : 'Select SSH Key',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 12,
+                              color: const Color(0xFF8E8E93),
+                            ),
+                          ),
+                          dropdownColor: const Color(0xFF181C23),
+                          isExpanded: true,
+                          icon: const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: Color(0xFF8E8E93),
+                          ),
+                          items: keys
+                              .map(
+                                (k) => DropdownMenuItem(
+                                  value: k.id,
+                                  child: Text(
+                                    k.fingerprint,
+                                    style: GoogleFonts.jetBrainsMono(
+                                      fontSize: 12,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) =>
+                              setState(() => _selectedKeyId = val),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
-                isExpanded: true,
-                onChanged: (value) {
-                  setState(() => _selectedKeyId = value);
-                },
               ),
-              if (_authType == AuthType.publicKey && keys.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: TextButton.icon(
-                    onPressed: () => context.push('/keys'),
-                    icon: const Icon(Icons.add_rounded, size: 16),
-                    label: const Text('Generate or import a key'),
+            ),
+            const SizedBox(height: 16),
+
+            // ── Row 3: Environment Tag & Accent Color (2-Column Grid) ──
+            Row(
+              children: [
+                // Left Card: ENV TAG
+                Expanded(
+                  child: _buildCardContainer(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ENV TAG',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 8,
+                          children: ['PROD', 'STG', 'DEV'].map((env) {
+                            final isSel = _environment == env;
+                            return GestureDetector(
+                              onTap: () => setState(() => _environment = env),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSel
+                                      ? const Color(
+                                          0xFF32D74B,
+                                        ).withValues(alpha: 0.12)
+                                      : const Color(0xFF10131B),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: isSel
+                                        ? const Color(
+                                            0xFF32D74B,
+                                          ).withValues(alpha: 0.5)
+                                        : const Color(0xFF414754),
+                                    width: isSel ? 1.0 : 0.8,
+                                  ),
+                                ),
+                                child: Text(
+                                  env,
+                                  style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 11,
+                                    fontWeight: isSel
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: isSel
+                                        ? const Color(0xFF32D74B)
+                                        : const Color(0xFF8E8E93),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-            ],
+                const SizedBox(width: 12),
 
-            const SizedBox(height: 28),
-            _buildSectionLabel('Network'),
-            const SizedBox(height: 12),
-
-            SegmentedButton<ConnectionMethod>(
-              style: const ButtonStyle(
-                iconSize: WidgetStatePropertyAll(14),
-                textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12)),
-                padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
-              ),
-              segments: const [
-                ButtonSegment(
-                  value: ConnectionMethod.direct,
-                  label: Text('Direct'),
-                  icon: Icon(Icons.language_rounded, size: 14),
-                ),
-                ButtonSegment(
-                  value: ConnectionMethod.tailscale,
-                  label: Text('Tailscale'),
-                  icon: Icon(Icons.vpn_lock_rounded, size: 14),
+                // Right Card: ACCENT
+                Expanded(
+                  child: _buildCardContainer(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ACCENT',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: List.generate(_accentColors.length, (idx) {
+                            final c = _accentColors[idx];
+                            final isSel = _colorIndex == idx;
+                            return GestureDetector(
+                              onTap: () => setState(() => _colorIndex = idx),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  color: c,
+                                  shape: BoxShape.circle,
+                                  boxShadow: isSel
+                                      ? [
+                                          BoxShadow(
+                                            color: c.withValues(alpha: 0.5),
+                                            blurRadius: 8,
+                                            spreadRadius: 2,
+                                          ),
+                                        ]
+                                      : [],
+                                  border: isSel
+                                      ? Border.all(
+                                          color: Colors.white,
+                                          width: 2,
+                                        )
+                                      : null,
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
-              selected: {_connectionMethod},
-              onSelectionChanged: (sel) {
-                setState(() => _connectionMethod = sel.first);
-              },
             ),
-            // Tailscale auth key
-            if (_connectionMethod == ConnectionMethod.tailscale) ...[
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _authKeyController,
-                obscureText: _obscureAuthKey,
-                decoration: InputDecoration(
-                  labelText: 'Tailscale Auth Key',
-                  hintText: 'tskey-auth-xxxxx',
-                  prefixIcon: const Icon(Icons.vpn_key_rounded),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureAuthKey
-                          ? Icons.visibility_off_rounded
-                          : Icons.visibility_rounded,
-                    ),
-                    onPressed: () =>
-                        setState(() => _obscureAuthKey = !_obscureAuthKey),
+            const SizedBox(height: 16),
+
+            // ── Card 4: Network Routing ──
+            _buildCardContainer(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Route via Tailscale',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Use mesh network overlay',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 12,
+                          color: const Color(0xFF8E8E93),
+                        ),
+                      ),
+                    ],
                   ),
+                  Switch(
+                    value: _connectionMethod == ConnectionMethod.tailscale,
+                    activeThumbColor: const Color(0xFF00CCFF),
+                    activeTrackColor: const Color(
+                      0xFF00CCFF,
+                    ).withValues(alpha: 0.25),
+                    inactiveThumbColor: const Color(0xFF8E8E93),
+                    inactiveTrackColor: const Color(0xFF10131B),
+                    onChanged: (val) {
+                      setState(() {
+                        _connectionMethod = val
+                            ? ConnectionMethod.tailscale
+                            : ConnectionMethod.direct;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // ── Action Buttons ──
+            // Primary Save Button
+            GestureDetector(
+              onTap: _save,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00CCFF),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF00CCFF).withValues(alpha: 0.35),
+                      blurRadius: 15,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.save_rounded,
+                      size: 20,
+                      color: Color(0xFF001B3E),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _isEditing ? 'Update Profile' : 'Save Profile',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF001B3E),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-            const SizedBox(height: 36),
-
-            // Test connection button
-            OutlinedButton.icon(
-              onPressed: _isTesting ? null : _testConnection,
-              icon: _isTesting
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.wifi_find_rounded),
-              label: Text(_isTesting ? 'Testing...' : 'Test Connection'),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
-            // Save button
-            ElevatedButton.icon(
-              onPressed: _save,
-              icon: const Icon(Icons.save_rounded),
-              label: Text(_isEditing ? 'Update' : 'Save'),
+            // Secondary Test Connection Button
+            GestureDetector(
+              onTap: _isTesting ? null : _testConnection,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFF00CCFF).withValues(alpha: 0.4),
+                    width: 1.0,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _isTesting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF00CCFF),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.cable_rounded,
+                            size: 20,
+                            color: Color(0xFF00CCFF),
+                          ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _isTesting ? 'Testing Connection…' : 'Test Connection',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF00CCFF),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -414,86 +646,125 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     );
   }
 
-  Widget _buildSectionLabel(String text) {
+  Widget _buildCardContainer({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C2027),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 0.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildSectionHeader(IconData icon, String title) {
     return Row(
       children: [
-        Container(
-          width: 3,
-          height: 14,
-          decoration: BoxDecoration(
-            color: AppConstants.primaryGreen,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
+        Icon(icon, size: 16, color: const Color(0xFF00CCFF)),
         const SizedBox(width: 8),
         Text(
-          text,
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: Colors.white.withValues(alpha: 0.7),
-            letterSpacing: 0.5,
+          title,
+          style: GoogleFonts.jetBrainsMono(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF00CCFF),
+            letterSpacing: 1.5,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildColorPicker() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Color',
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: Colors.white.withValues(alpha: 0.5),
+  Widget _buildInputLabel(String label) {
+    return Text(
+      label,
+      style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFFC0C6D6)),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hintText,
+    bool obscureText = false,
+    TextAlign textAlign = TextAlign.start,
+    TextInputType? keyboardType,
+    Widget? suffixIcon,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      obscureText: obscureText,
+      textAlign: textAlign,
+      keyboardType: keyboardType,
+      style: GoogleFonts.jetBrainsMono(fontSize: 13, color: Colors.white),
+      validator: validator,
+      decoration: InputDecoration(
+        hintText: hintText,
+        hintStyle: GoogleFonts.jetBrainsMono(
+          fontSize: 12,
+          color: const Color(0xFF8E8E93),
+        ),
+        filled: true,
+        fillColor: const Color(0xFF10131B),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: const Color(0xFF00CCFF).withValues(alpha: 0.5),
+            width: 1.0,
           ),
         ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 40,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: ProfileColors.palette.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
-            itemBuilder: (context, index) {
-              final color = ProfileColors.palette[index];
-              final isSelected = index == _colorIndex;
-              return GestureDetector(
-                onTap: () => setState(() => _colorIndex = index),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOut,
-                  width: isSelected ? 44 : 32,
-                  height: isSelected ? 44 : 32,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                    border: isSelected
-                        ? Border.all(color: Colors.white, width: 2.5)
-                        : null,
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: color.withValues(alpha: 0.4),
-                              blurRadius: 10,
-                              spreadRadius: 1,
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: isSelected
-                      ? const Icon(Icons.check_rounded,
-                          color: Colors.black, size: 20)
-                      : null,
-                ),
-              );
-            },
+        suffixIcon: suffixIcon,
+      ),
+    );
+  }
+
+  Widget _buildAuthSegment({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF262A32) : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.jetBrainsMono(
+            fontSize: 10,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+            color: isSelected ? Colors.white : const Color(0xFF8E8E93),
+            letterSpacing: 0.5,
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -509,10 +780,21 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       TailscaleSSHSocket? sock;
       if (_connectionMethod == ConnectionMethod.tailscale) {
         var ts = ref.read(tailscaleServiceProvider);
-        var conn = await ts.dial(profile.host, profile.port, timeout: const Duration(seconds: 10));
+        var conn = await ts.dial(
+          profile.host,
+          profile.port,
+          timeout: const Duration(seconds: 10),
+        );
         sock = TailscaleSSHSocket(conn);
       } else {
         sock = null;
+      }
+
+      String? passwordToUse = _passwordController.text;
+      if (passwordToUse.isEmpty && _existingProfile != null) {
+        passwordToUse = await ref
+            .read(profileStorageProvider)
+            .getPassword(_existingProfile!.id);
       }
 
       String? privateKey;
@@ -525,21 +807,26 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       await testService.testConnection(
         profile: profile,
         privateKey: privateKey,
-        password: _passwordController.text,
+        password: (passwordToUse != null && passwordToUse.isNotEmpty)
+            ? passwordToUse
+            : null,
         socket: sock,
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            backgroundColor: const Color(0xFF181C23),
             content: Row(
               children: [
-                const Icon(Icons.check_circle_rounded,
-                    color: AppConstants.primaryGreen),
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: AppConstants.primaryGreen,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Connection successful!',
-                  style: GoogleFonts.inter(),
+                  style: GoogleFonts.jetBrainsMono(color: Colors.white),
                 ),
               ],
             ),
@@ -550,11 +837,17 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            backgroundColor: const Color(0xFF181C23),
             content: Row(
               children: [
                 const Icon(Icons.error_outline_rounded, color: Colors.red),
                 const SizedBox(width: 8),
-                Expanded(child: Text(e.toString())),
+                Expanded(
+                  child: Text(
+                    e.toString(),
+                    style: GoogleFonts.jetBrainsMono(color: Colors.white),
+                  ),
+                ),
               ],
             ),
           ),
@@ -576,11 +869,9 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     final storage = ref.read(profileStorageProvider);
     await storage.saveProfile(profile);
 
-    // Store password in secure storage (Keystore) instead of Hive.
     if (_passwordController.text.isNotEmpty) {
       await storage.savePassword(profile.id, _passwordController.text);
     } else {
-      // Clear password from secure storage if user blanked the field.
       await storage.deletePassword(profile.id);
     }
 
@@ -595,9 +886,10 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       context.pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          backgroundColor: const Color(0xFF181C23),
           content: Text(
             _isEditing ? 'Connection updated' : 'Connection saved',
-            style: GoogleFonts.inter(),
+            style: GoogleFonts.jetBrainsMono(color: Colors.white),
           ),
         ),
       );
@@ -612,7 +904,6 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       port: int.parse(_portController.text.trim()),
       username: _usernameController.text.trim(),
       authType: _authType,
-      // Password is now stored in secure storage, not in the Hive profile.
       password: null,
       keyId: _selectedKeyId,
       colorIndex: _colorIndex,
@@ -626,19 +917,27 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Connection'),
+        backgroundColor: const Color(0xFF181C23),
+        title: Text(
+          'Delete Connection',
+          style: GoogleFonts.jetBrainsMono(color: Colors.white),
+        ),
         content: Text(
           'Delete "${_labelController.text.trim()}"? This cannot be undone.',
+          style: GoogleFonts.jetBrainsMono(color: const Color(0xFF8E8E93)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.jetBrainsMono(color: Colors.white70),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            child: Text('Delete', style: GoogleFonts.jetBrainsMono()),
           ),
         ],
       ),
@@ -646,7 +945,6 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
 
     if (confirm == true) {
       final storage = ref.read(profileStorageProvider);
-      await storage.deletePassword(widget.profileId!);
       await storage.deleteProfile(widget.profileId!);
       if (mounted) context.pop();
     }

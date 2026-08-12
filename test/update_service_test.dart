@@ -55,9 +55,12 @@ void main() {
       expect(UpdateService.isNewer('v0.4.1', '0.4.0'), isTrue);
     });
 
-    test('returns true when build number is incremented (0.4.0+3 vs 0.4.0+2)', () {
-      expect(UpdateService.isNewer('0.4.0+3', '0.4.0+2'), isTrue);
-    });
+    test(
+      'returns true when build number is incremented (0.4.0+3 vs 0.4.0+2)',
+      () {
+        expect(UpdateService.isNewer('0.4.0+3', '0.4.0+2'), isTrue);
+      },
+    );
 
     test('returns false when versions are identical', () {
       expect(UpdateService.isNewer('v0.4.0', '0.4.0'), isFalse);

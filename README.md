@@ -1,187 +1,144 @@
-<div align="center">
+# Tether
 
-<img src="assets/logo.png" alt="Tether Logo" width="120" height="120">
+Tether is a pocket SSH and mesh terminal for Android. It combines a pure-Dart
+SSH client, a VT100 terminal, SFTP, port forwarding, and embedded Tailscale
+networking in one mobile app.
 
-# ⚡ Tether — Pocket SSH & Mesh Terminal
+Current app version: `0.5.0+3`
+Repository: [narcisoJavier/Tether](https://github.com/narcisoJavier/Tether)
+Platform: Android (iOS is not supported yet)
 
-**Your server in your pocket. One tap to connect, multi-tab terminal, WireGuard mesh, everything encrypted.**
+## Current experience
 
-[![Flutter](https://img.shields.io/badge/Flutter-3.44-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
-[![Dart](https://img.shields.io/badge/Dart-3.12-0175C2?logo=dart&logoColor=white)](https://dart.dev)
-[![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)](https://github.com/narcisoJavier/Tether/releases)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+- Home dashboard with saved connection profiles, environment tags, connection
+  health, telemetry entry points, SSH, SFTP, and tunnel actions.
+- Persistent multi-tab SSH terminal with automatic sizing, pinch-to-zoom,
+  mobile keyboard controls, and quick commands routed to an existing shell.
+- Command Deck with searchable presets, categories, offline brand marks,
+  saved commands, phone-style long-press arrangement, and persisted folder
+  ordering/row sizing.
+- SFTP browser with upload, download, rename, delete, directory creation, and
+  direct connection support when no terminal tab is already open.
+- SSH key generation/import with Android Keystore-backed private-key storage.
+- Local, remote, and dynamic SOCKS5 tunnels, including optional auto-start.
+- Biometric lock, onboarding, update checks, and JSON profile/command backup.
 
-</div>
+## Architecture
 
----
+```text
+Flutter app
+  StatefulShellRoute
+    Home       -> profiles and profile actions
+    Terminal   -> persistent SSH tabs and xterm.dart
+    Commands   -> preset/saved command management
+    Keys       -> SSH key metadata and lifecycle
+    Settings   -> terminal, security, backup, and update preferences
 
-## ✨ Features
+SSH: dartssh2 -> direct socket or embedded Tailscale socket -> target server
+Storage:
+  Hive                 profiles, tunnel definitions, saved commands
+  Android Keystore     private keys and passwords
+  SharedPreferences    onboarding, settings, command-deck layout metadata
+```
 
-### 🚇 Port Forwarding & Tunnels
-Fully integrated SSH tunneling support! Set up **Local**, **Remote**, and **Dynamic (SOCKS5)** port forwarding directly from the **Tunnels** screen. Tunnels can be set to auto-start when the connection opens, allowing for seamless background networking.
+The app is intentionally Android-first. The embedded Tailscale package builds
+the native Go runtime through Dart hooks and is skipped on x86_64 emulators
+where the platform cannot load the required networking path.
 
-### 🌌 Premium "Deep Space" Redesign
-The entire app features a premium aesthetic with layered midnight navy surfaces, glowing neon accents, and frosted glass components. The `ConnectionTile` is highly legible and features a smooth swipe-to-reveal action menu.
+## Getting started
 
-### 🚀 Built-in Tailscale Networking
-OPA embeds Tailscale userspace networking directly — no separate app, no VPN profile. Join your tailnet from inside OPA, discover peers by MagicDNS, and connect over encrypted WireGuard tunnels. Your servers don't even need public IPs. The Go-based Tailscale runtime (tsnet) compiles alongside the app — one APK, zero external dependencies.
+### Prerequisites
 
-### ⚡ Swipe-to-Reveal Actions
-Compact **swipeable tiles** — swipe left on any connection to reveal instant-action buttons: **SFTP**, **Config**, **Tunnels**, and **QCMD** (Quick Commands). Tap the tile to go straight to the terminal — no more extra screens between you and your shell.
+- Flutter SDK compatible with the Dart constraint in `pubspec.yaml` (`>=3.10.4`)
+- Android SDK and an Android device or emulator
+- Go 1.26+ and Android NDK for the embedded Tailscale build
 
-### 🔒 Secure by Default
-Private keys and passwords live exclusively in the hardware-backed **Android Keystore**, never in plaintext local storage. Features a robust biometric lock enforced at the routing layer for instant, secure authentication. Zero telemetry, zero cloud sync.
+### Run locally
 
----
-
-## 📱 How It Works
-
-### One-Tap Connections
-Add a server once — host, port, username, auth method — and it's saved forever. Your connection list becomes a launchpad. **Tap any tile** and you're in a full SSH session instantly. Each connection gets a color-coded accent bar so you can spot production, staging, and dev at a glance.
-
-### Terminal, Reimagined for Mobile
-The terminal is a first-class mobile experience:
-- **Auto-fit font** — 80+ columns in portrait, 120+ in landscape
-- **Rotate to immersive** — landscape hides everything but the shell
-- **Smart keyboard bar** — TAB, ESC, arrows, Ctrl+C always one tap away
-- **VT100/256-color** — full terminal emulation via xterm.dart
-- **Scrollback** — never miss output that scrolls off screen
-
-### Agent Presets — Launch Anything
-20+ pre-built quick commands for the tools you actually use:
-- **AI Agents:** Claude Code, opencode, aider, Gemini CLI, Codex
-- **Dev Tools:** htop, lazygit, tmux, nvim, btop, fastfetch
-- **System:** journalctl, docker ps, df -h, free -m, ss -tulpn
-- **Network:** iperf3, mtr, nmap, tcpdump, traceroute
-
----
-
-## 🏗 Architecture
-
-<details>
-<summary><b>Click to expand Architecture Details</b></summary>
-
-~~~
-OPA App
-  Home Screen (ConnectionTile) --> Terminal Screen (xterm.dart)
-    --> dartssh2 (SSH via password, key, or both)
-      --> Tailscale (embedded tsnet: WireGuard, MagicDNS, DERP)
-        --> Target server
-
-Persistent storage:
-  Hive DB --> profiles, quick commands
-  Android Keystore --> private keys, passwords (hardware-backed)
-  SharedPrefs --> onboarding state
-~~~
-
-### Key Decisions
-
-| Decision | Why |
-|----------|-----|
-| **Flutter + Dart** | Cross-platform, native perf, mature ecosystem |
-| **dartssh2** | Pure-Dart SSH — no native bindings, full control |
-| **xterm.dart** | VT100/256-color terminal widget with scrollback |
-| **Tailscale (embedded)** | Per-process tsnet, no VPN app or root needed |
-| **ConnectionTile (swipe)** | GestureDetector + AnimationController, no extra deps |
-| **Hive** | Fast local NoSQL, no SQLite boilerplate |
-| **Riverpod** | Compile-safe state, context-independent |
-| **Android Keystore** | HW-backed storage, keys never leave secure enclave |
-</details>
-
----
-
-## 🚀 Getting Started
-
-### Install
-Download the latest APK from [GitHub Releases](https://github.com/2241812/OPA_Flutter/releases/latest).
-
-### Build from Source
-Prerequisites: Flutter SDK >= 3.0, Go >= 1.26 (for Tailscale native compilation), Android NDK.
-
-~~~bash
-git clone https://github.com/2241812/OPA_Flutter.git
-cd OPA_Flutter
+```bash
+git clone https://github.com/narcisoJavier/Tether.git
+cd Tether
 flutter pub get
-flutter run             # Run on connected device
-flutter build apk --release  # Release APK
-~~~
+flutter run
+```
 
-### First-Time Setup
-1. Swipe through the 4-slide onboarding or tap Skip.
-2. Tap `+` to add your first server (host, port 22, username, auth method).
-3. Set up key-based auth: `SSH Keys` -> `+` -> `Generate Ed25519 Key` -> `Copy`.
-   *On your server:* `echo "ssh-ed25519 AAAAC3... opa" >> ~/.ssh/authorized_keys`
-4. Tap any connection tile to open the terminal instantly.
-5. Swipe left for SFTP, Config, Tunnels, or QCMD quick commands.
+### Build and verify
 
----
+```bash
+dart format lib test
+dart analyze
+flutter test
+flutter build apk --debug
+flutter build apk --release
+```
 
-## 🌐 Setting Up a Target Server
+Host-side analysis and tests may require the native Tailscale toolchain. An
+Android debug build is the most representative validation path for changes
+that touch the embedded networking package.
 
-<details>
-<summary><b>Windows (OpenSSH Server)</b></summary>
+## First connection
 
-~~~powershell
-# Install (run as Administrator)
-Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
-# Start and enable
-Start-Service sshd
-Set-Service -Name sshd -StartupType Automatic
-# Find your IP
-ipconfig
-~~~
-</details>
+1. Complete onboarding or choose Skip.
+2. Add a profile from Home with the server host, port, username, and auth
+   method.
+3. For key authentication, open **Keys**, generate or import a key, copy its
+   public key to the server's `authorized_keys`, then select the key in the
+   profile.
+4. Tap **SSH** to open a terminal tab. Use the terminal header's lightning
+   button to send a saved command to the active shell, or choose another tab
+   when multiple sessions are open.
+5. Use the profile action sheet for SFTP, telemetry, tunnels, or profile
+   editing.
 
-<details>
-<summary><b>Linux</b></summary>
+## Security and data boundaries
 
-~~~bash
-sudo apt install openssh-server
-sudo systemctl enable --now ssh
-~~~
-</details>
+- SSH passwords are stored in Android Keystore-backed secure storage, not in
+  the Hive profile record.
+- Private key material is stored through the key service and is not included
+  in exports.
+- Export/import is local JSON. Imports do not provide cloud synchronization.
+- Tether does not collect product telemetry or silently upload connection data.
+- Users are responsible for host verification, server permissions, and the
+  security of any command they execute.
 
-<details>
-<summary><b>macOS</b></summary>
-System Settings -> General -> Sharing -> toggle Remote Login ON.
-</details>
+## Known limitations and next priorities
 
----
+- Home telemetry currently reports connection-health signals. It does not yet
+  fetch live CPU, RAM, or disk values from the remote server; those should be
+  collected through authenticated SSH commands and cached per profile.
+- Command-deck layout metadata is stored in SharedPreferences and is not yet
+  included in profile/command JSON exports.
+- Import collisions currently follow the import service's existing overwrite
+  behavior; a preview and conflict-resolution step is planned.
+- The visual convergence pass has covered Home, Command Deck, Keys, Settings,
+  and the persistent terminal. SFTP and tunnel sub-screens remain candidates
+  for the next component-level polish pass.
+- There is no CI/CD pipeline or iOS target yet. Release builds are currently
+  manual.
 
-## 🔒 Security Model
+## Repository map
 
-| Layer | How OPA Protects You |
-|-------|----------------------|
-| **Private Keys & Passwords** | Android Keystore — hardware-backed, never exposed as plaintext |
-| **SSH Transport** | Direct socket, encrypted by SSH protocol, no MITM |
-| **Tailscale** | WireGuard end-to-end, DERP relayed only when necessary |
-| **Network** | Fully offline — zero telemetry, zero cloud, zero third-party |
-| **App Access** | Biometric lock (fingerprint or face) handled securely at the routing layer |
+| Area | Location |
+| --- | --- |
+| App entry and theme | `lib/main.dart`, `lib/app_theme.dart` |
+| Routing and shell navigation | `lib/app_router.dart`, `lib/widgets/glass_bottom_nav_bar.dart` |
+| Home and profiles | `lib/screens/home_screen.dart`, `lib/screens/profile_editor_screen.dart` |
+| Terminal | `lib/screens/tabbed_terminal_screen.dart`, `lib/services/ssh_service.dart` |
+| Command Deck | `lib/screens/quick_commands_screen.dart`, `lib/services/quick_command_layout_service.dart` |
+| SFTP and tunnels | `lib/screens/sftp_screen.dart`, `lib/screens/tunnel_screen.dart` |
+| Keys and secure storage | `lib/screens/key_management_screen.dart`, `lib/services/key_service.dart` |
+| Local persistence | `lib/services/profile_storage_service.dart`, `lib/services/export_service.dart` |
+| Embedded networking | `packages/tailscale/` |
+| Tests | `test/` |
 
----
+## Contributing
 
-## 🗺 Roadmap
+Keep UI state in Riverpod, use the shared `GradientScaffold`/`GlassAppBar`
+components for shell screens, preserve bottom-navigation safe spacing, and
+add mounted checks after asynchronous gaps. Use single quotes, avoid
+`print()`, and run formatting plus the relevant tests before committing.
 
-- [x] Port forwarding UI - local, remote, dynamic (SOCKS5) tunnels
-- [x] Android Keystore hardware-backed password security
-- [ ] SFTP file browser — upload, download, manage remote files
-- [ ] Jump host / bastion — chain through servers
-- [ ] SSH agent forwarding — use local keys remotely
-- [ ] Session recording and replay
-- [ ] Profile import and export
-- [ ] Custom preset editor
-- [ ] iOS support
-- [ ] Split APKs by ABI for smaller downloads
-- [ ] Tailscale Taildrop — P2P file transfers over tailnet
+## License
 
----
-
-<div align="center">
-
-## 📄 License
-
-[MIT](LICENSE) | Built with love by Renzo Javier
-
-*OPA is not affiliated with OpenSSH, Tailscale, or any referenced tool.*
-
-</div>
+[MIT](LICENSE). Tether is not affiliated with OpenSSH, Tailscale, or any
+referenced command-line tool.

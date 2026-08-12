@@ -8,8 +8,10 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../models/stored_key_pair.dart';
 import '../services/key_service.dart';
+import '../services/profile_storage_service.dart';
 import '../utils/constants.dart';
 import '../widgets/key_card.dart';
+import '../widgets/gradient_scaffold.dart';
 
 /// Screen for managing SSH key pairs — generate, import, and delete.
 class KeyManagementScreen extends ConsumerStatefulWidget {
@@ -25,15 +27,30 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
   Widget build(BuildContext context) {
     final keys = ref.watch(keyServiceProvider).listKeys();
 
-    return Scaffold(
-      appBar: AppBar(
+    final bottomInset = 128 + MediaQuery.paddingOf(context).bottom;
+
+    return GradientScaffold(
+      appBar: GlassAppBar(
         title: Text(
-          'SSH Keys',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+          'SSH KEYS',
+          style: GoogleFonts.jetBrainsMono(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.2,
+            color: Colors.white,
+          ),
         ),
+        actions: [
+          IconButton(
+            onPressed: _showAddKeyMenu,
+            tooltip: 'Add key',
+            icon: const Icon(Icons.add_rounded, color: Colors.white),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: ListView(
-        padding: const EdgeInsets.only(top: 4, bottom: 100),
+        padding: EdgeInsets.fromLTRB(0, 4, 0, bottomInset.toDouble()),
         children: [
           // ── Info banner ──
           _buildInfoBanner(),
@@ -57,13 +74,14 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 7, vertical: 2),
+                      horizontal: 7,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: AppConstants.primaryGreen.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color:
-                            AppConstants.primaryGreen.withValues(alpha: 0.2),
+                        color: AppConstants.primaryGreen.withValues(alpha: 0.2),
                       ),
                     ),
                     child: Text(
@@ -88,23 +106,6 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
           ],
         ],
       ),
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: AppConstants.primaryGreen.withValues(alpha: 0.25),
-              blurRadius: 16,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: FloatingActionButton(
-          onPressed: _showAddKeyMenu,
-          tooltip: 'Add Key',
-          child: const Icon(Icons.add_rounded),
-        ),
-      ),
     );
   }
 
@@ -112,8 +113,8 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
 
   Widget _buildInfoBanner() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: AppConstants.primaryGreen.withValues(alpha: 0.06),
@@ -152,7 +153,7 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
               ],
             ),
           ),
-    )
+        )
         .animate()
         .fadeIn(duration: 400.ms, curve: Curves.easeOut)
         .slideY(begin: -0.05, end: 0, duration: 350.ms, curve: Curves.easeOut);
@@ -162,43 +163,49 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
 
   Widget _buildEmptyState() {
     return Padding(
-      padding: const EdgeInsets.all(48),
-      child: Column(
-        children: [
-          Icon(
-            Icons.vpn_key_rounded,
-            size: 64,
-            color: Colors.white.withValues(alpha: 0.1),
-          )
-              .animate(onPlay: (c) => c.repeat())
-              .shimmer(
-                  duration: 2500.ms,
-                  color: AppConstants.primaryGreen.withValues(alpha: 0.08))
-              .scale(
-                begin: const Offset(1, 1),
-                end: const Offset(1.02, 1.02),
-                duration: 2500.ms,
-                curve: Curves.easeInOutSine,
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: AppConstants.surfaceDark.withValues(alpha: 0.58),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.vpn_key_rounded,
+              size: 28,
+              color: AppConstants.primaryGreen.withValues(alpha: 0.7),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'No SSH keys yet',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.8),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Generate or import a key to use key-based authentication.',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: Colors.white.withValues(alpha: 0.45),
+                      height: 1.4,
+                    ),
+                  ),
+                ],
               ),
-          const SizedBox(height: 20),
-          Text(
-            'No SSH keys yet',
-            style: GoogleFonts.inter(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.white.withValues(alpha: 0.45),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Generate or import a key to get started',
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              color: Colors.white.withValues(alpha: 0.25),
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -225,13 +232,12 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.check_circle_rounded,
-                    color: AppConstants.primaryGreen),
-                const SizedBox(width: 8),
-                Text(
-                  'Ed25519 key generated',
-                  style: GoogleFonts.inter(),
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: AppConstants.primaryGreen,
                 ),
+                const SizedBox(width: 8),
+                Text('Ed25519 key generated', style: GoogleFonts.inter()),
               ],
             ),
           ),
@@ -252,7 +258,6 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
   }
 
   Future<void> _importKey() async {
-    final controller = TextEditingController();
     final label = await showDialog<String>(
       context: context,
       builder: (context) => _LabelInputDialog(
@@ -265,6 +270,7 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
     if (label == null || label.trim().isEmpty) return;
 
     if (!mounted) return;
+    final controller = TextEditingController();
     final pemContent = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -291,27 +297,26 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
         ],
       ),
     );
+    controller.dispose();
 
     if (pemContent == null || pemContent.trim().isEmpty) return;
 
     try {
-      await ref.read(keyServiceProvider).importKey(
-            label: label.trim(),
-            privateKeyPem: pemContent.trim(),
-          );
+      await ref
+          .read(keyServiceProvider)
+          .importKey(label: label.trim(), privateKeyPem: pemContent.trim());
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.check_circle_rounded,
-                    color: AppConstants.primaryGreen),
-                const SizedBox(width: 8),
-                Text(
-                  'Key imported successfully',
-                  style: GoogleFonts.inter(),
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: AppConstants.primaryGreen,
                 ),
+                const SizedBox(width: 8),
+                Text('Key imported successfully', style: GoogleFonts.inter()),
               ],
             ),
           ),
@@ -353,6 +358,36 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
   }
 
   Future<void> _deleteKey(StoredKeyPair key) async {
+    final storage = ref.read(profileStorageProvider);
+    final linkedProfiles = storage
+        .listProfiles()
+        .where((profile) => profile.keyId == key.id)
+        .toList();
+
+    if (linkedProfiles.isNotEmpty) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Key is in use'),
+          content: Text(
+            'This key is assigned to ${linkedProfiles.length} connection'
+            '${linkedProfiles.length == 1 ? '' : 's'}: '
+            '${linkedProfiles.map((profile) => profile.label).join(', ')}. '
+            'Edit those profiles and choose another authentication method '
+            'before deleting the key.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Keep Key'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -380,6 +415,8 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
   void _showAddKeyMenu() {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) => ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -388,8 +425,9 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
           child: Container(
             decoration: BoxDecoration(
               color: AppConstants.surfaceDark.withValues(alpha: 0.9),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
               border: Border(
                 top: BorderSide(
                   color: AppConstants.primaryGreen.withValues(alpha: 0.15),
@@ -416,8 +454,9 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
-                          color:
-                              AppConstants.primaryGreen.withValues(alpha: 0.1),
+                          color: AppConstants.primaryGreen.withValues(
+                            alpha: 0.1,
+                          ),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Icon(
@@ -433,8 +472,11 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
                       subtitle: Text(
                         'Recommended',
                         style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: AppConstants.primaryGreen.withValues(alpha: 0.7)),
+                          fontSize: 11,
+                          color: AppConstants.primaryGreen.withValues(
+                            alpha: 0.7,
+                          ),
+                        ),
                       ),
                       onTap: () {
                         Navigator.pop(context);

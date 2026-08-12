@@ -21,16 +21,16 @@ class UpdateInfo {
   });
 
   Map<String, dynamic> toJson() => {
-        'latestVersion': latestVersion,
-        'downloadUrl': downloadUrl,
-        'releaseNotes': releaseNotes,
-      };
+    'latestVersion': latestVersion,
+    'downloadUrl': downloadUrl,
+    'releaseNotes': releaseNotes,
+  };
 
   factory UpdateInfo.fromJson(Map<String, dynamic> json) => UpdateInfo(
-        latestVersion: json['latestVersion'] as String? ?? '',
-        downloadUrl: json['downloadUrl'] as String? ?? '',
-        releaseNotes: json['releaseNotes'] as String? ?? '',
-      );
+    latestVersion: json['latestVersion'] as String? ?? '',
+    downloadUrl: json['downloadUrl'] as String? ?? '',
+    releaseNotes: json['releaseNotes'] as String? ?? '',
+  );
 }
 
 /// Checks the GitHub Releases API for newer versions of the app.
@@ -57,7 +57,8 @@ class UpdateService {
 
     // Check 24-hour cache if force is false
     if (!force && prefs != null) {
-      final lastCheckMillis = prefs.getInt(AppConstants.lastUpdateCheckKey) ?? 0;
+      final lastCheckMillis =
+          prefs.getInt(AppConstants.lastUpdateCheckKey) ?? 0;
       final elapsed = DateTime.now().millisecondsSinceEpoch - lastCheckMillis;
       if (elapsed < _cacheDuration.inMilliseconds) {
         final cachedJsonStr = prefs.getString(AppConstants.cachedUpdateInfoKey);

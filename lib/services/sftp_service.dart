@@ -1,4 +1,4 @@
-﻿import 'package:dartssh2/dartssh2.dart' as dartssh2;
+import 'package:dartssh2/dartssh2.dart' as dartssh2;
 import 'package:flutter/foundation.dart';
 
 /// A remote file or directory entry from SFTP listing.
@@ -40,7 +40,7 @@ class SftpService extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _isConnected = false;
-      _errorMessage = 'SFTP connect failed: ';
+      _errorMessage = 'SFTP connect failed: $e';
       notifyListeners();
       rethrow;
     }
@@ -59,8 +59,7 @@ class SftpService extends ChangeNotifier {
         size: item.attr.size ?? 0,
         permissions: item.attr.mode?.value ?? 0,
         modifiedAt: item.attr.modifyTime != null
-            ? DateTime.fromMillisecondsSinceEpoch(
-                item.attr.modifyTime! * 1000)
+            ? DateTime.fromMillisecondsSinceEpoch(item.attr.modifyTime! * 1000)
             : null,
       );
     }).toList();

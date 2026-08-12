@@ -9,15 +9,15 @@ import 'onboarding_service.dart';
 /// Persisted to SharedPreferences so it survives app restarts.
 final biometricLockEnabledProvider =
     StateNotifierProvider<BiometricLockNotifier, bool>((ref) {
-  final prefs = ref.watch(sharedPrefsProvider);
-  return BiometricLockNotifier(prefs);
-});
+      final prefs = ref.watch(sharedPrefsProvider);
+      return BiometricLockNotifier(prefs);
+    });
 
 class BiometricLockNotifier extends StateNotifier<bool> {
   final SharedPreferences _prefs;
 
   BiometricLockNotifier(this._prefs)
-      : super(_prefs.getBool(AppConstants.biometricLockEnabledKey) ?? false);
+    : super(_prefs.getBool(AppConstants.biometricLockEnabledKey) ?? false);
 
   /// Toggle the lock on/off and persist.
   Future<void> toggle() async {

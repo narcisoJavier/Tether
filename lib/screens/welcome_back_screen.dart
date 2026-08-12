@@ -22,7 +22,7 @@ class WelcomeBackScreen extends StatefulWidget {
 class _WelcomeBackScreenState extends State<WelcomeBackScreen>
     with SingleTickerProviderStateMixin {
   static const _bootLines = [
-    '> Initializing OPA core...               [OK]',
+    '> Initializing Tether core...             [OK]',
     '> Establishing secure tunnel...          [OK]',
     '> Syncing connection profiles...         [OK]',
     '> Terminal active.',
@@ -129,10 +129,10 @@ class _WelcomeBackScreenState extends State<WelcomeBackScreen>
                       builder: (context, _) {
                         return LinearProgressIndicator(
                           value: _progressCtrl.value,
-                          backgroundColor:
-                              accent.withValues(alpha: 0.15),
-                          valueColor:
-                              const AlwaysStoppedAnimation<Color>(accent),
+                          backgroundColor: accent.withValues(alpha: 0.15),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            accent,
+                          ),
                         );
                       },
                     ),

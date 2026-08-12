@@ -2,21 +2,20 @@ import 'package:hive/hive.dart';
 
 import 'tunnel_config.dart';
 
+const _copyWithUnset = Object();
+
 /// Authentication method for an SSH connection.
 ///
 /// Indexed values are used by the manual Hive adapter in
 /// `lib/services/hive_adapters.dart` (do NOT use code-gen annotations here —
 /// those would require build_runner and a generated .g.dart part file).
-enum AuthType {
-  password,
-  publicKey,
-  passwordAndPublicKey,
-}
+enum AuthType { password, publicKey, passwordAndPublicKey }
 
 /// How the connection reaches the remote host.
 enum ConnectionMethod {
   /// Direct TCP connection (DNS hostname or public IP).
   direct,
+
   /// Via an embedded Tailscale node over WireGuard.
   tailscale,
 }
@@ -59,9 +58,9 @@ class ConnectionProfile extends HiveObject {
     this.connectionMethod = ConnectionMethod.direct,
     List<TunnelConfig>? tunnels,
     this.environment,
-  })  : createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now(),
-        tunnels = tunnels ?? [];
+  }) : createdAt = createdAt ?? DateTime.now(),
+       updatedAt = updatedAt ?? DateTime.now(),
+       tunnels = tunnels ?? [];
 
   ConnectionProfile copyWith({
     String? label,
@@ -69,13 +68,13 @@ class ConnectionProfile extends HiveObject {
     int? port,
     String? username,
     AuthType? authType,
-    String? password,
-    String? keyId,
+    Object? password = _copyWithUnset,
+    Object? keyId = _copyWithUnset,
     int? colorIndex,
     bool? lastConnectionSuccess,
     ConnectionMethod? connectionMethod,
     List<TunnelConfig>? tunnels,
-    String? environment,
+    Object? environment = _copyWithUnset,
   }) {
     return ConnectionProfile(
       id: id,
@@ -84,8 +83,10 @@ class ConnectionProfile extends HiveObject {
       port: port ?? this.port,
       username: username ?? this.username,
       authType: authType ?? this.authType,
-      password: password ?? this.password,
-      keyId: keyId ?? this.keyId,
+      password: identical(password, _copyWithUnset)
+          ? this.password
+          : password as String?,
+      keyId: identical(keyId, _copyWithUnset) ? this.keyId : keyId as String?,
       colorIndex: colorIndex ?? this.colorIndex,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
@@ -93,7 +94,9 @@ class ConnectionProfile extends HiveObject {
           lastConnectionSuccess ?? this.lastConnectionSuccess,
       connectionMethod: connectionMethod ?? this.connectionMethod,
       tunnels: tunnels ?? this.tunnels,
-      environment: environment ?? this.environment,
+      environment: identical(environment, _copyWithUnset)
+          ? this.environment
+          : environment as String?,
     );
   }
 

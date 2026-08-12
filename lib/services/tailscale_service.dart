@@ -5,32 +5,32 @@ import 'package:tailscale/tailscale.dart';
 
 import '../utils/constants.dart';
 
-/// Base exception for all Tailscale service errors in OPA.
+/// Base exception for all Tailscale service errors in Tether.
 class TailscaleException implements Exception {
   final String message;
   final String code;
   final Object? cause;
   const TailscaleException(this.message, this.code, {this.cause});
   @override
-  String toString() => 'TailscaleException[]: ';
+  String toString() => 'TailscaleException[$code]: $message';
 }
 
 /// Thrown when the Tailscale TCP dial fails (node not reachable).
 class TailscaleDialException extends TailscaleException {
   const TailscaleDialException(String message, {Object? cause})
-      : super(message, 'DIAL', cause: cause);
+    : super(message, 'DIAL', cause: cause);
 }
 
 /// Thrown when the node cannot connect to the tailnet.
 class TailscaleConnectException extends TailscaleException {
   const TailscaleConnectException(String message, {Object? cause})
-      : super(message, 'CONNECT', cause: cause);
+    : super(message, 'CONNECT', cause: cause);
 }
 
 /// Thrown when the auth key is missing or invalid.
 class TailscaleAuthException extends TailscaleException {
   const TailscaleAuthException(String message, {Object? cause})
-      : super(message, 'AUTH', cause: cause);
+    : super(message, 'AUTH', cause: cause);
 }
 
 /// Service wrapping an embedded Tailscale node via `package:tailscale`.
@@ -46,8 +46,7 @@ class TailscaleService {
   final FlutterSecureStorage _secureStorage;
 
   TailscaleService({FlutterSecureStorage? secureStorage})
-      : _secureStorage =
-            secureStorage ?? const FlutterSecureStorage();
+    : _secureStorage = secureStorage ?? const FlutterSecureStorage();
 
   // --- Guard helpers ---
 
@@ -111,10 +110,7 @@ class TailscaleService {
   /// to the cloud.
   void initialize(String stateDir) {
     if (_initialized) return;
-    Tailscale.init(
-      stateDir: stateDir,
-      logLevel: TailscaleLogLevel.silent,
-    );
+    Tailscale.init(stateDir: stateDir, logLevel: TailscaleLogLevel.silent);
     _initialized = true;
 
     debugPrint('[Tailscale] initialized (stateDir: $stateDir)');
@@ -133,14 +129,16 @@ class TailscaleService {
   }) async {
     _requireInit();
     final status = await Tailscale.instance.up(
-      hostname: 'opa-phone',
+      hostname: 'tether-phone',
       authKey: authKey,
       ephemeral: ephemeral,
       timeout: timeout,
     );
     _hasConnected = true;
-    debugPrint('[Tailscale] up: state=${status.state}, '
-        'ipv4=${status.ipv4}, nodeId=${status.stableNodeId}');
+    debugPrint(
+      '[Tailscale] up: state=${status.state}, '
+      'ipv4=${status.ipv4}, nodeId=${status.stableNodeId}',
+    );
     return status;
   }
 
@@ -180,10 +178,7 @@ class TailscaleService {
             'No auth key configured. Add one in Profile > Tailscale.',
           );
         }
-        await up(
-          authKey: key,
-          timeout: timeout ?? const Duration(seconds: 30),
-        );
+        await up(authKey: key, timeout: timeout ?? const Duration(seconds: 30));
       }
     } finally {
       if (!_upMutex!.isCompleted) _upMutex!.complete();
@@ -191,13 +186,14 @@ class TailscaleService {
     }
   }
 
-  Future<TailscaleConnection> dial(String address, int port,
-      {Duration? timeout}) async {
+  Future<TailscaleConnection> dial(
+    String address,
+    int port, {
+    Duration? timeout,
+  }) async {
     await _ensureUp(timeout: timeout);
     try {
-      return await Tailscale.instance.tcp.dial(
-        address, port, timeout: timeout,
-      );
+      return await Tailscale.instance.tcp.dial(address, port, timeout: timeout);
     } catch (e) {
       throw TailscaleDialException(
         'Could not reach $address:$port over tailnet. '

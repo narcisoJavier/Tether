@@ -1,5 +1,5 @@
 ---
-name: OPA "Apple TUI"
+name: Tether "Apple TUI"
 colors:
   primary: "#0A84FF"
   secondary: "#FF9F0A"
@@ -26,11 +26,11 @@ rounded:
   sheet: 24px
 ---
 
-# Design System — OPA (Apple TUI 2.0)
+# Design System — Tether (Apple TUI 2.0)
 
 ## Overview
 
-OPA (OpenSSH Pocket Agent) is a premium OLED-dark mobile SSH client and Tailscale node. 
+Tether is a premium OLED-dark mobile SSH client and Tailscale node.
 The design language — **Apple TUI** — bridges the elegance of modern iOS glassmorphism with the dense, high-contrast utility of retro terminal dashboards. Every pixel is optimized for one-handed mobile terminal use: zero-light OLED black canvas, subtle frosted glass elevation layers, 10-segment pip stat indicators, and crisp JetBrains Mono + Inter typography.
 
 ---

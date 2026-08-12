@@ -160,8 +160,7 @@ class QuickCommandAdapter extends TypeAdapter<QuickCommand> {
     final command = reader.read() as String;
     final profileId = reader.read() as String?;
     final colorIndex = reader.read() as int;
-    final createdAt =
-        DateTime.fromMillisecondsSinceEpoch(reader.readInt());
+    final createdAt = DateTime.fromMillisecondsSinceEpoch(reader.readInt());
 
     // presetId was added later — guard against older entries that don't
     // contain it so existing data still deserializes cleanly.

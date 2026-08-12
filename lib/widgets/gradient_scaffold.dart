@@ -67,9 +67,8 @@ class GlassAppBar extends StatelessWidget implements PreferredSizeWidget {
   final double blurSigma;
 
   @override
-  Size get preferredSize => Size.fromHeight(
-        toolbarHeight + (bottom?.preferredSize.height ?? 0),
-      );
+  Size get preferredSize =>
+      Size.fromHeight(toolbarHeight + (bottom?.preferredSize.height ?? 0));
 
   @override
   Widget build(BuildContext context) {
@@ -89,9 +88,7 @@ class GlassAppBar extends StatelessWidget implements PreferredSizeWidget {
               ],
             ),
             border: Border(
-              bottom: BorderSide(
-                color: Colors.white.withValues(alpha: 0.06),
-              ),
+              bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
             ),
           ),
           child: SafeArea(
@@ -101,21 +98,30 @@ class GlassAppBar extends StatelessWidget implements PreferredSizeWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                  child: NavigationToolbar(
-                    leading: leading != null
-                        ? Padding(
-                            padding: const EdgeInsets.only(left: 4),
-                            child: leading,
-                          )
-                        : null,
-                    middle: title,
-                    trailing: actions != null
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: actions!,
-                          )
-                        : null,
-                    centerMiddle: true,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Center(child: title),
+                      if (leading != null)
+                        Positioned(
+                          left: 8,
+                          top: 0,
+                          bottom: 0,
+                          child: Center(child: leading!),
+                        ),
+                      if (actions != null)
+                        Positioned(
+                          right: 8,
+                          top: 0,
+                          bottom: 0,
+                          child: Center(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: actions!,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 ?bottom,

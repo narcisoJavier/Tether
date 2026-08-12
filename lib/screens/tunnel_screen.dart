@@ -43,9 +43,7 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
   @override
   Widget build(BuildContext context) {
     if (_profile == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final sshService = ref.watch(sshServiceProvider(widget.profileId));
@@ -78,7 +76,10 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
         actions: [
           if (activeTunnels.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.stop_circle_outlined, color: Colors.redAccent),
+              icon: const Icon(
+                Icons.stop_circle_outlined,
+                color: Colors.redAccent,
+              ),
               tooltip: 'Stop All',
               onPressed: () => _stopAllTunnels(sshService),
             ),
@@ -111,9 +112,7 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.04),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.08),
-              ),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: const Icon(
               Icons.swap_horiz_rounded,
@@ -193,11 +192,7 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
             color: typeColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(
-            _typeIcon(tunnel.type),
-            size: 20,
-            color: typeColor,
-          ),
+          child: Icon(_typeIcon(tunnel.type), size: 20, color: typeColor),
         ),
         title: Text(
           tunnel.label.isNotEmpty ? tunnel.label : tunnel.displayString,
@@ -221,9 +216,7 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
                 ),
               ),
               Icon(
-                tunnel.enabled
-                    ? Icons.autorenew_rounded
-                    : Icons.block_rounded,
+                tunnel.enabled ? Icons.autorenew_rounded : Icons.block_rounded,
                 size: 14,
                 color: tunnel.enabled
                     ? AppConstants.primaryGreen.withValues(alpha: 0.6)
@@ -271,7 +264,10 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
               )
             else
               IconButton(
-                icon: const Icon(Icons.play_arrow_rounded, color: AppConstants.primaryGreen),
+                icon: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: AppConstants.primaryGreen,
+                ),
                 onPressed: sshService.isConnected
                     ? () => _startTunnel(tunnel, sshService)
                     : null,
@@ -345,9 +341,9 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Tunnel failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Tunnel failed: $e')));
       }
     } finally {
       if (mounted) {
@@ -404,8 +400,9 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
         await sshService.stopTunnel(tunnelId);
       }
 
-      final updatedTunnels =
-          _profile!.tunnels.where((t) => t.id != tunnelId).toList();
+      final updatedTunnels = _profile!.tunnels
+          .where((t) => t.id != tunnelId)
+          .toList();
       final updated = _profile!.copyWith(tunnels: updatedTunnels);
       await ref.read(profileStorageProvider).saveProfile(updated);
       _loadProfile();
@@ -422,6 +419,8 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useRootNavigator: true,
+      useSafeArea: true,
       backgroundColor: AppConstants.surfaceDark,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -553,7 +552,12 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
           ),
         ),
       ),
-    );
+    ).whenComplete(() {
+      labelCtrl.dispose();
+      localPortCtrl.dispose();
+      remoteHostCtrl.dispose();
+      remotePortCtrl.dispose();
+    });
   }
 
   Future<void> _saveTunnel(
@@ -566,9 +570,9 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
   ) async {
     final localPort = int.tryParse(localPortStr);
     if (localPort == null || localPort <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid local port')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invalid local port')));
       return;
     }
 
@@ -576,9 +580,9 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
     if (type != TunnelType.dynamicSocks5) {
       remotePort = int.tryParse(remotePortStr) ?? 0;
       if (remotePort <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid remote port')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Invalid remote port')));
         return;
       }
     }
@@ -588,7 +592,9 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
       label: label.trim(),
       type: type,
       localPort: localPort,
-      remoteHost: type == TunnelType.dynamicSocks5 ? 'localhost' : remoteHost.trim(),
+      remoteHost: type == TunnelType.dynamicSocks5
+          ? 'localhost'
+          : remoteHost.trim(),
       remotePort: remotePort,
     );
 

@@ -1,10 +1,9 @@
 import 'package:hive/hive.dart';
 
+import '../utils/constants.dart';
+
 /// Supported SSH key types.
-enum KeyType {
-  ed25519,
-  rsa,
-}
+enum KeyType { ed25519, rsa }
 
 /// Metadata for a stored SSH key pair.
 ///
@@ -33,12 +32,11 @@ class StoredKeyPair extends HiveObject {
   }) : createdAt = createdAt ?? DateTime.now();
 
   /// The secure storage key used to look up the private key.
-  String get secureStorageKey => 'opa_key_$id';
+  String get secureStorageKey => '${AppConstants.secureStoragePrefix}$id';
 
   /// Short fingerprint-like label, e.g. "My Key (ed25519)"
   String get fingerprint => '$label (${keyType.name})';
 
   /// Extract just the key comment/type for display.
-  String get keyTypeLabel =>
-      keyType == KeyType.ed25519 ? 'Ed25519' : 'RSA';
+  String get keyTypeLabel => keyType == KeyType.ed25519 ? 'Ed25519' : 'RSA';
 }

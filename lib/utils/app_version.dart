@@ -21,7 +21,9 @@ class AppVersion {
     if (_cached != null) return _cached!;
     try {
       final info = await PackageInfo.fromPlatform();
-      final buildSuffix = info.buildNumber.isNotEmpty ? '+${info.buildNumber}' : '';
+      final buildSuffix = info.buildNumber.isNotEmpty
+          ? '+${info.buildNumber}'
+          : '';
       _cached = '${info.version}$buildSuffix';
       return _cached!;
     } catch (_) {
@@ -34,4 +36,3 @@ class AppVersion {
   /// fallback if [get] hasn't been awaited yet.
   static String get current => _cached ?? _fallbackVersion;
 }
-

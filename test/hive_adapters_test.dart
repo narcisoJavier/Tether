@@ -253,11 +253,7 @@ void main() {
 
     test('round-trips all TunnelType enum values', () {
       for (final type in TunnelType.values) {
-        final original = TunnelConfig(
-          id: 'type-test',
-          label: 'L',
-          type: type,
-        );
+        final original = TunnelConfig(id: 'type-test', label: 'L', type: type);
         final restored = _roundTrip(original, TunnelConfigAdapter());
         expect(restored.type, type);
       }

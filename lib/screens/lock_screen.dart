@@ -12,17 +12,17 @@ import '../utils/constants.dart';
 
 /// State of the lock screen's auth flow.
 enum _LockState {
-  checking,      // Initial — checking if biometrics are available
-  ready,         // Waiting for user to tap authenticate
+  checking, // Initial — checking if biometrics are available
+  ready, // Waiting for user to tap authenticate
   authenticating, // Auth in progress
-  success,       // Auth succeeded (should trigger app switch)
-  error,         // Auth error (platform issue, lockout)
-  unavailable,   // No biometric hardware at all
+  success, // Auth succeeded (should trigger app switch)
+  error, // Auth error (platform issue, lockout)
+  unavailable, // No biometric hardware at all
 }
 
 /// Full-screen biometric lock gate shown before the main app.
 ///
-/// Matches the dark glassmorphism aesthetic of the rest of OPA.
+/// Matches the dark glassmorphism aesthetic of the rest of Tether.
 class LockScreen extends ConsumerStatefulWidget {
   const LockScreen({super.key});
 
@@ -57,7 +57,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
 
     try {
       final success = await _biometricService.authenticate(
-        reason: 'Authenticate to open OPA',
+        reason: 'Authenticate to open Tether',
         biometricOnly: false, // allow PIN/pattern fallback
       );
 
@@ -66,7 +66,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
       if (success) {
         setState(() => _lockState = _LockState.success);
         // Mark the session as authenticated — the gate widget in main.dart
-        // watches authSessionProvider and will swap to OpaApp.
+        // watches authSessionProvider and will swap to TetherApp.
         ref.read(authSessionProvider.notifier).state = true;
       } else {
         // User cancelled or failed (OS handles retry; false = user gave up).
@@ -125,29 +125,29 @@ class _LockScreenState extends ConsumerState<LockScreen> {
 
   Widget _buildLogo() {
     return Container(
-      width: 88,
-      height: 88,
-      decoration: BoxDecoration(
-        color: AppConstants.primaryGreen.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: AppConstants.primaryGreen.withValues(alpha: 0.15),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
+          width: 88,
+          height: 88,
+          decoration: BoxDecoration(
             color: AppConstants.primaryGreen.withValues(alpha: 0.08),
-            blurRadius: 24,
-            spreadRadius: 4,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: AppConstants.primaryGreen.withValues(alpha: 0.15),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppConstants.primaryGreen.withValues(alpha: 0.08),
+                blurRadius: 24,
+                spreadRadius: 4,
+              ),
+            ],
           ),
-        ],
-      ),
-      child: const Icon(
-        Icons.terminal_rounded,
-        size: 44,
-        color: AppConstants.primaryGreen,
-      ),
-    )
+          child: const Icon(
+            Icons.terminal_rounded,
+            size: 44,
+            color: AppConstants.primaryGreen,
+          ),
+        )
         .animate()
         .fadeIn(duration: 600.ms, curve: Curves.easeOut)
         .scale(
@@ -160,14 +160,14 @@ class _LockScreenState extends ConsumerState<LockScreen> {
 
   Widget _buildTitle() {
     return Text(
-      'OPA',
-      style: GoogleFonts.jetBrainsMono(
-        fontSize: 32,
-        fontWeight: FontWeight.w700,
-        color: Colors.white,
-        letterSpacing: 2,
-      ),
-    )
+          'Tether',
+          style: GoogleFonts.jetBrainsMono(
+            fontSize: 32,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+            letterSpacing: 2,
+          ),
+        )
         .animate()
         .fadeIn(duration: 500.ms, delay: 200.ms, curve: Curves.easeOut)
         .slideY(begin: 0.1, end: 0, duration: 400.ms, curve: Curves.easeOut);
@@ -175,15 +175,13 @@ class _LockScreenState extends ConsumerState<LockScreen> {
 
   Widget _buildSubtitle() {
     return Text(
-      'OpenSSH Pocket Agent',
+      'Pocket SSH & Mesh Terminal',
       style: GoogleFonts.inter(
         fontSize: 14,
         color: Colors.white.withValues(alpha: 0.4),
         letterSpacing: 1,
       ),
-    )
-        .animate()
-        .fadeIn(duration: 500.ms, delay: 300.ms, curve: Curves.easeOut);
+    ).animate().fadeIn(duration: 500.ms, delay: 300.ms, curve: Curves.easeOut);
   }
 
   Widget _buildAuthSection() {
@@ -217,10 +215,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
         SizedBox(height: 16),
         Text(
           'Checking device...',
-          style: TextStyle(
-            color: Colors.white38,
-            fontSize: 13,
-          ),
+          style: TextStyle(color: Colors.white38, fontSize: 13),
         ),
       ],
     );
@@ -228,47 +223,45 @@ class _LockScreenState extends ConsumerState<LockScreen> {
 
   Widget _buildReadyState() {
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.08),
-            ),
-          ),
-          child: const Icon(
-            Icons.fingerprint_rounded,
-            size: 32,
-            color: Colors.white38,
-          ),
-        ),
-        const SizedBox(height: 24),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _authenticate,
-            icon: const Icon(Icons.lock_open_rounded),
-            label: Text(
-              'Authenticate',
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: const Icon(
+                Icons.fingerprint_rounded,
+                size: 32,
+                color: Colors.white38,
               ),
             ),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _authenticate,
+                icon: const Icon(Icons.lock_open_rounded),
+                label: Text(
+                  'Authenticate',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-      ],
-    )
+          ],
+        )
         .animate()
         .fadeIn(duration: 400.ms, curve: Curves.easeOut)
         .slideY(begin: 0.08, end: 0, duration: 350.ms, curve: Curves.easeOut);
@@ -278,21 +271,21 @@ class _LockScreenState extends ConsumerState<LockScreen> {
     return Column(
       children: [
         Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            color: AppConstants.primaryGreen.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: AppConstants.primaryGreen.withValues(alpha: 0.2),
-            ),
-          ),
-          child: const Icon(
-            Icons.fingerprint_rounded,
-            size: 32,
-            color: AppConstants.primaryGreen,
-          ),
-        )
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: AppConstants.primaryGreen.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: AppConstants.primaryGreen.withValues(alpha: 0.2),
+                ),
+              ),
+              child: const Icon(
+                Icons.fingerprint_rounded,
+                size: 32,
+                color: AppConstants.primaryGreen,
+              ),
+            )
             .animate(onPlay: (c) => c.repeat())
             .shimmer(
               duration: 1500.ms,
@@ -361,9 +354,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
           decoration: BoxDecoration(
             color: Colors.red.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: Colors.red.withValues(alpha: 0.15),
-            ),
+            border: Border.all(color: Colors.red.withValues(alpha: 0.15)),
           ),
           child: const Icon(
             Icons.error_outline_rounded,
@@ -454,7 +445,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
             },
             icon: const Icon(Icons.arrow_forward_rounded),
             label: Text(
-              'Open OPA',
+              'Open Tether',
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.w600,
                 fontSize: 15,
@@ -469,8 +460,6 @@ class _LockScreenState extends ConsumerState<LockScreen> {
           ),
         ),
       ],
-    )
-        .animate()
-        .fadeIn(duration: 400.ms, curve: Curves.easeOut);
+    ).animate().fadeIn(duration: 400.ms, curve: Curves.easeOut);
   }
 }

@@ -1,28 +1,28 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-07-08
-**Commit:** 0249149
+**Generated:** 2026-08-12
+**Commit:** see `git log` for the current revision
 **Branch:** main
 
 ## OVERVIEW
 
-Tether — Pocket SSH & Mesh Terminal. Flutter/Dart Android app (v0.5.0+3) for mobile SSH with embedded Tailscale networking. Pure-Dart SSH client (dartssh2) + VT100 terminal (xterm.dart) + Go FFI bridge for WireGuard tunnels.
+Tether — Pocket SSH & Mesh Terminal. Flutter/Dart Android app (v0.5.0+3) for mobile SSH with embedded Tailscale networking. Pure-Dart SSH client (dartssh2) + VT100 terminal (xterm.dart) + Go FFI bridge for WireGuard tunnels. The current UI uses a shared OLED/glass shell with persistent five-branch navigation.
 
 ## STRUCTURE
 
 ```
 Tether/
-├── lib/                    # Flutter app source (38 files)
+├── lib/                    # Flutter app source (49 Dart files)
 │   ├── main.dart           # Entry: Hive init, Tailscale init, Riverpod scope
-│   ├── app_router.dart     # GoRouter: 10 routes + onboarding guard
+│   ├── app_router.dart     # GoRouter: StatefulShellRoute + onboarding/lock guard
 │   ├── app_theme.dart      # Dark glassmorphism Material3 theme
 │   ├── models/             # Data classes (ConnectionProfile, StoredKeyPair, QuickCommand)
-│   ├── screens/            # Full-page widgets (10 screens)
-│   ├── services/           # Business logic (13 services) ← see lib/services/AGENTS.md
+│   ├── screens/            # Full-page widgets (12 screens)
+│   ├── services/           # Business logic (17 services)
 │   ├── utils/              # Constants, presets, encoders
-│   └── widgets/            # Reusable components (3 widgets)
+│   └── widgets/            # Reusable components (6 widgets)
 ├── packages/tailscale/     # Embedded Go FFI sub-package ← see packages/tailscale/AGENTS.md
-├── test/                   # 5 unit test files
+├── test/                   # 6 unit test files
 ├── android/                # Android platform (Kotlin MainActivity, Gradle)
 ├── assets/                 # Logo assets (SVG, PNG, generation script)
 └── pubspec.yaml            # Flutter manifest
@@ -37,7 +37,7 @@ Tether/
 | Add new model | `lib/models/` | Extend HiveObject, register adapter in hive_adapters.dart |
 | Modify SSH connection | `lib/services/ssh_service.dart` | dartssh2 wrapper |
 | Modify Tailscale | `lib/services/tailscale_service.dart` | Wraps package:tailscale |
-| Modify terminal | `lib/screens/terminal_screen.dart` | xterm.dart + auto-fit + keyboard bar |
+| Modify terminal | `lib/screens/tabbed_terminal_screen.dart` | xterm.dart + persistent tabs + keyboard bar |
 | Modify theme | `lib/app_theme.dart` | Single source for all Material3 styling |
 | Add quick command preset | `lib/utils/agent_presets.dart` | 253-line data file |
 | Build native Go | `packages/tailscale/hook/build.dart` | Auto-runs on flutter build |
@@ -48,8 +48,8 @@ Tether/
 | Symbol | Type | Location | Role |
 |--------|------|----------|------|
 | `main()` | function | `lib/main.dart` | App entry: Hive + SharedPreferences + Tailscale + Riverpod |
-| `OpaApp` | class | `lib/main.dart` | Biometric gate → MaterialApp.router |
-| `appRouterProvider` | provider | `lib/app_router.dart` | GoRouter with 10 routes |
+| `TetherApp` | class | `lib/main.dart` | Biometric gate → MaterialApp.router |
+| `appRouterProvider` | provider | `lib/app_router.dart` | GoRouter with persistent five-branch shell |
 | `AppTheme.dark()` | method | `lib/app_theme.dart` | Dark glassmorphism theme |
 | `SshService` | class | `lib/services/ssh_service.dart` | dartssh2 wrapper: connect/shell/exec |
 | `TailscaleService` | class | `lib/services/tailscale_service.dart` | Embedded WireGuard tailnet |
@@ -58,7 +58,7 @@ Tether/
 | `ConnectionProfile` | model | `lib/models/connection_profile.dart` | SSH connection profile |
 | `StoredKeyPair` | model | `lib/models/stored_key_pair.dart` | SSH key metadata |
 | `QuickCommand` | model | `lib/models/quick_command.dart` | Saved command preset |
-| `ConnectionTile` | widget | `lib/widgets/connection_tile.dart` | Swipeable connection tile |
+| `ConnectionTile` | widget | `lib/widgets/connection_tile.dart` | Connection tile with visible action sheet |
 | `AgentPresets` | class | `lib/utils/agent_presets.dart` | 20+ agent/tool presets |
 | `Tailscale` | class | `packages/tailscale/lib/tailscale.dart` | Go FFI bridge singleton |
 
@@ -94,6 +94,8 @@ Tether/
 - **Typography** — Inter (UI) + JetBrains Mono (terminal)
 - **Biometric gate** — Widget-level conditional rendering (not route-based)
 - **Tailscale FFI** — Go compiled to shared library via Dart hooks
+- **Command Deck layout** — Quick command ordering, categories, and folder row sizing persist in SharedPreferences
+- **Navigation safety** — Shell screens reserve space for the translucent bottom navigation; modal sheets use the root navigator and safe areas
 
 ## COMMANDS
 
@@ -116,7 +118,8 @@ flutter clean && flutter pub get   # Full clean rebuild
 - **No iOS support yet** — Android only (iOS on roadmap)
 - **Tailscale state** excluded from cloud backups
 - **x86_64 emulators** — Tailscale skipped on emulator (seccomp SIGSYS)
+- **Live telemetry** — Home telemetry currently reports connection-health signals; remote CPU/RAM/DISK collection remains a future SSH-backed feature
 
 ## ACTIVE DEVELOPMENT
 
-> **⚠️ BEFORE STARTING ANY WORK**: Read `.agents/PROGRESS.md` for the current implementation state. This project has an active multi-session development effort (OPA v0.4) that may span multiple agent sessions/accounts. The progress file tracks what's done, what's in progress, and what's next. Always check it first to avoid redoing completed work.
+> **⚠️ BEFORE STARTING ANY WORK**: Read `.agents/PROGRESS.md` for the current implementation state. This project has an active multi-session development effort (Tether v0.5) that may span multiple agent sessions/accounts. The progress file tracks what's done, what's in progress, and what's next. Always check it first to avoid redoing completed work.

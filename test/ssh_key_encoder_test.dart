@@ -64,14 +64,16 @@ void main() {
 
       final lines = material.privateKeyPem
           .split('\n')
-          .where((l) =>
-              !l.startsWith('-----') && l.trim().isNotEmpty)
+          .where((l) => !l.startsWith('-----') && l.trim().isNotEmpty)
           .toList();
 
       expect(lines, isNotEmpty);
       for (final line in lines) {
-        expect(line.length, lessThanOrEqualTo(70),
-            reason: 'PEM line exceeds 70 chars: "$line"');
+        expect(
+          line.length,
+          lessThanOrEqualTo(70),
+          reason: 'PEM line exceeds 70 chars: "$line"',
+        );
       }
     });
 
@@ -163,17 +165,23 @@ void main() {
       final privStrLen = _readUint32(privSection, p);
       p += 4;
       // The last 32 bytes of the 64-byte private string are the public key.
-      final pubFromPrivate =
-          privSection.sublist(p + privStrLen - 32, p + privStrLen);
+      final pubFromPrivate = privSection.sublist(
+        p + privStrLen - 32,
+        p + privStrLen,
+      );
 
-      expect(pubFromPrivate, equals(pubFromPublic),
-          reason: 'Public key in PEM must match the public key string');
+      expect(
+        pubFromPrivate,
+        equals(pubFromPublic),
+        reason: 'Public key in PEM must match the public key string',
+      );
       expect(privStrLen, 64); // ed25519: seed(32) + pub(32)
     });
 
     test('uses provided comment in public key', () {
-      final material =
-          SshKeyEncoder.generateEd25519(comment: 'opa-custom-label');
+      final material = SshKeyEncoder.generateEd25519(
+        comment: 'opa-custom-label',
+      );
       expect(material.publicKey, endsWith(' opa-custom-label'));
     });
 

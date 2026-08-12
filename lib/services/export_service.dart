@@ -5,6 +5,7 @@ import '../models/connection_profile.dart';
 import '../models/quick_command.dart';
 import '../models/tunnel_config.dart';
 import '../utils/constants.dart';
+import 'profile_storage_service.dart';
 
 /// Data envelope for export/import.
 class ExportData {
@@ -57,20 +58,21 @@ class ExportService {
     final Map<String, dynamic> data;
     try {
       data = jsonDecode(json) as Map<String, dynamic>;
-    } catch (e) {
-      return const ImportResult(success: false, message: 'Invalid JSON: ');
+    } catch (_) {
+      return const ImportResult(success: false, message: 'Invalid JSON.');
     }
 
     final version = data['version'] as int?;
     if (version == null || version < 1 || version > _currentVersion) {
       return const ImportResult(
         success: false,
-        message: 'Unsupported format version: ',
+        message: 'Unsupported format version.',
       );
     }
 
     final profilesBox = Hive.box<ConnectionProfile>(AppConstants.profilesBox);
     final commandsBox = Hive.box<QuickCommand>(AppConstants.commandsBox);
+    final storage = ProfileStorageService(profilesBox, commandsBox);
 
     int profilesImported = 0;
     int commandsImported = 0;
@@ -82,6 +84,14 @@ class ExportService {
         if (map['id'] == null || map['label'] == null) continue;
         final profile = _profileFromJson(map);
         await profilesBox.put(profile.id, profile);
+
+        // Older exports may contain a legacy plaintext password. Store it in
+        // secure storage during import, then keep it out of Hive. New exports
+        // intentionally omit passwords entirely.
+        final importedPassword = map['password'] as String?;
+        if (importedPassword != null && importedPassword.isNotEmpty) {
+          await storage.savePassword(profile.id, importedPassword);
+        }
         profilesImported++;
       }
     }
@@ -90,7 +100,11 @@ class ExportService {
     if (commandsList != null) {
       for (final c in commandsList) {
         final map = c as Map<String, dynamic>;
-        if (map['id'] == null || map['label'] == null || map['command'] == null) continue;
+        if (map['id'] == null ||
+            map['label'] == null ||
+            map['command'] == null) {
+          continue;
+        }
         final command = _commandFromJson(map);
         await commandsBox.put(command.id, command);
         commandsImported++;
@@ -99,7 +113,9 @@ class ExportService {
 
     return ImportResult(
       success: true,
-      message: 'Imported  profiles and  commands.',
+      message:
+          'Imported $profilesImported profiles and '
+          '$commandsImported commands.',
       profilesImported: profilesImported,
       commandsImported: commandsImported,
     );
@@ -113,7 +129,6 @@ class ExportService {
       'port': p.port,
       'username': p.username,
       'authType': p.authType.name,
-      'password': p.password,
       'keyId': p.keyId,
       'colorIndex': p.colorIndex,
       'createdAt': p.createdAt.toIso8601String(),
@@ -133,16 +148,22 @@ class ExportService {
       port: map['port'] as int,
       username: map['username'] as String,
       authType: _parseAuthType(map['authType'] as String?),
-      password: map['password'] as String?,
+      // Passwords are handled separately by importFromJson and are never
+      // persisted in the Hive profile object.
+      password: null,
       keyId: map['keyId'] as String?,
       colorIndex: map['colorIndex'] as int? ?? 0,
       createdAt: _parseDateTime(map['createdAt']),
       updatedAt: _parseDateTime(map['updatedAt']),
       lastConnectionSuccess: map['lastConnectionSuccess'] as bool? ?? false,
-      connectionMethod: _parseConnectionMethod(map['connectionMethod'] as String?),
-      tunnels: tunnelsList
-          ?.map((t) => _tunnelFromJson(t as Map<String, dynamic>))
-          .toList() ?? [],
+      connectionMethod: _parseConnectionMethod(
+        map['connectionMethod'] as String?,
+      ),
+      tunnels:
+          tunnelsList
+              ?.map((t) => _tunnelFromJson(t as Map<String, dynamic>))
+              .toList() ??
+          [],
     );
   }
 

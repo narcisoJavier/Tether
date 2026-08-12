@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -7,10 +9,16 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../models/connection_profile.dart';
+import '../services/key_service.dart';
+import '../services/profile_storage_service.dart';
 import '../services/sftp_service.dart';
 import '../services/ssh_service.dart';
 import '../services/terminal_tab_request_provider.dart';
+import '../services/tailscale_provider.dart';
+import '../services/tailscale_ssh_socket.dart';
 import '../utils/constants.dart';
+import '../utils/terminal_settings_provider.dart';
 
 /// Screen for browsing remote files via SFTP.
 class SftpScreen extends ConsumerStatefulWidget {
@@ -29,30 +37,77 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
   bool _isLoading = true;
   String? _error;
   bool _isConnected = false;
+  bool _ownsSshConnection = false;
+
+  late final SshService _sshService;
 
   String get _currentPath => _pathStack.last;
 
   @override
   void initState() {
     super.initState();
+    _sshService = ref.read(sshServiceProvider(widget.profileId));
     _connect();
   }
 
   Future<void> _connect() async {
-    final sshService = ref.read(sshServiceProvider(widget.profileId));
-    final client = sshService.client;
-    if (client == null) {
-      setState(() {
-        _error = 'Not connected to SSH. Connect from the terminal first.';
-        _isLoading = false;
-      });
-      return;
-    }
     try {
+      var client = _sshService.client;
+
+      // SFTP can be opened directly from a connection tile. Reuse an
+      // existing terminal client when available; otherwise establish a
+      // profile-scoped SSH connection that this screen owns.
+      if (client == null) {
+        final profile = ref
+            .read(profileStorageProvider)
+            .getProfile(widget.profileId);
+        if (profile == null) {
+          throw StateError('Connection profile not found.');
+        }
+
+        TailscaleSSHSocket? socket;
+        if (profile.connectionMethod == ConnectionMethod.tailscale) {
+          final ts = ref.read(tailscaleServiceProvider);
+          final connection = await ts.dial(
+            profile.host,
+            profile.port,
+            timeout: const Duration(seconds: 10),
+          );
+          socket = TailscaleSSHSocket(connection);
+        }
+
+        final privateKey = profile.keyId == null
+            ? null
+            : await ref.read(keyServiceProvider).getPrivateKey(profile.keyId!);
+        final securePassword = await ref
+            .read(profileStorageProvider)
+            .getPassword(profile.id);
+
+        await _sshService.connect(
+          profile: profile,
+          privateKey: privateKey,
+          password: securePassword ?? profile.password,
+          keepalive: Duration(seconds: ref.read(terminalKeepaliveProvider)),
+          socket: socket,
+        );
+        _ownsSshConnection = true;
+        client = _sshService.client;
+      }
+
+      if (client == null) {
+        throw StateError('SSH connection was not established.');
+      }
+
       await _sftpService.connect(client);
+      if (!mounted) return;
       setState(() => _isConnected = true);
       await _listDirectory();
     } catch (e) {
+      if (_ownsSshConnection) {
+        await _sshService.disconnect();
+        _ownsSshConnection = false;
+      }
+      if (!mounted) return;
       setState(() {
         _error = 'SFTP failed: $e';
         _isLoading = false;
@@ -61,6 +116,7 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
   }
 
   Future<void> _listDirectory() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final entries = await _sftpService.listDirectory(_currentPath);
@@ -69,12 +125,14 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
         if (!a.isDirectory && b.isDirectory) return 1;
         return a.filename.compareTo(b.filename);
       });
+      if (!mounted) return;
       setState(() {
         _entries = entries;
         _isLoading = false;
         _error = null;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = 'Failed to list directory: $e';
         _isLoading = false;
@@ -108,7 +166,10 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
           side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
         backgroundColor: AppConstants.surfaceDark,
-        title: Text('New Directory', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+        title: Text(
+          'New Directory',
+          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+        ),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -119,7 +180,10 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
           style: GoogleFonts.jetBrainsMono(fontSize: 13),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
             child: const Text('Create'),
@@ -146,12 +210,19 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
           side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
         backgroundColor: AppConstants.surfaceDark,
-        title: Text('Delete ${entry.isDirectory ? 'Directory' : 'File'}',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-        content: Text('Delete "${entry.filename}"? This cannot be undone.',
-            style: GoogleFonts.inter()),
+        title: Text(
+          'Delete ${entry.isDirectory ? 'Directory' : 'File'}',
+          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          'Delete "${entry.filename}"? This cannot be undone.',
+          style: GoogleFonts.inter(),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -184,15 +255,23 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
           side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
         backgroundColor: AppConstants.surfaceDark,
-        title: Text('Rename', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+        title: Text(
+          'Rename',
+          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+        ),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(prefixIcon: Icon(Icons.edit_rounded)),
+          decoration: const InputDecoration(
+            prefixIcon: Icon(Icons.edit_rounded),
+          ),
           style: GoogleFonts.jetBrainsMono(fontSize: 13),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
             child: const Text('Rename'),
@@ -215,8 +294,10 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
 
   Future<void> _downloadEntry(SftpEntry entry) async {
     try {
-      final bytes = await _sftpService.readFile('$_currentPath/${entry.filename}');
-      final text = String.fromCharCodes(bytes);
+      final bytes = await _sftpService.readFile(
+        '$_currentPath/${entry.filename}',
+      );
+      final text = utf8.decode(bytes, allowMalformed: true);
       await Clipboard.setData(ClipboardData(text: text));
       if (mounted) {
         _showSuccess('Downloaded to clipboard');
@@ -227,8 +308,9 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
   }
 
   Future<void> _uploadFile() async {
-    final controller = TextEditingController();
-    final content = await showDialog<String>(
+    final filenameController = TextEditingController();
+    final contentController = TextEditingController();
+    final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(
@@ -236,12 +318,15 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
           side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
         backgroundColor: AppConstants.surfaceDark,
-        title: Text('Upload File', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+        title: Text(
+          'Upload File',
+          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              controller: controller,
+              controller: filenameController,
               decoration: const InputDecoration(
                 hintText: 'filename.txt',
                 prefixIcon: Icon(Icons.insert_drive_file_rounded),
@@ -250,6 +335,7 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
             ),
             const SizedBox(height: 12),
             TextField(
+              controller: contentController,
               maxLines: 6,
               decoration: const InputDecoration(
                 hintText: 'Paste file content here...',
@@ -260,19 +346,30 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
+            onPressed: () => Navigator.pop(ctx, {
+              'filename': filenameController.text.trim(),
+              'content': contentController.text,
+            }),
             child: const Text('Upload'),
           ),
         ],
       ),
     );
-    if (content != null && content.isNotEmpty) {
+    filenameController.dispose();
+    contentController.dispose();
+
+    final filename = result?['filename'];
+    final content = result?['content'] ?? '';
+    if (filename != null && filename.isNotEmpty) {
       try {
         await _sftpService.writeFile(
-          '$_currentPath/$content',
-          Uint8List.fromList(content.codeUnits),
+          '$_currentPath/$filename',
+          Uint8List.fromList(utf8.encode(content)),
         );
         await _listDirectory();
         if (mounted) _showSuccess('Uploaded');
@@ -285,11 +382,13 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(children: [
-          const Icon(Icons.error_rounded, color: Colors.red),
-          const SizedBox(width: 8),
-          Expanded(child: Text(msg, style: GoogleFonts.inter(fontSize: 13))),
-        ]),
+        content: Row(
+          children: [
+            const Icon(Icons.error_rounded, color: Colors.red),
+            const SizedBox(width: 8),
+            Expanded(child: Text(msg, style: GoogleFonts.inter(fontSize: 13))),
+          ],
+        ),
         duration: const Duration(seconds: 3),
       ),
     );
@@ -298,25 +397,42 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
   void _showSuccess(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(children: [
-          const Icon(Icons.check_circle_rounded, color: AppConstants.primaryGreen),
-          const SizedBox(width: 8),
-          Expanded(child: Text(msg, style: GoogleFonts.inter(fontSize: 13))),
-        ]),
+        content: Row(
+          children: [
+            const Icon(
+              Icons.check_circle_rounded,
+              color: AppConstants.primaryGreen,
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(msg, style: GoogleFonts.inter(fontSize: 13))),
+          ],
+        ),
         duration: const Duration(seconds: 2),
       ),
     );
   }
 
-  void _openInTerminal() {
-    ref.read(pendingTerminalTabProvider.notifier).state =
-        TerminalTabRequest(profileId: widget.profileId);
+  Future<void> _openInTerminal() async {
+    // This screen may have created a temporary SSH client for direct SFTP
+    // entry. Release it before the terminal branch creates its own session.
+    if (_ownsSshConnection) {
+      await _sftpService.disconnect();
+      await _sshService.disconnect();
+      _ownsSshConnection = false;
+    }
+    if (!mounted) return;
+    ref.read(pendingTerminalTabProvider.notifier).state = TerminalTabRequest(
+      profileId: widget.profileId,
+    );
     context.go('/terminal');
   }
 
   @override
   void dispose() {
-    _sftpService.disconnect();
+    unawaited(_sftpService.disconnect());
+    if (_ownsSshConnection) {
+      unawaited(_sshService.disconnect());
+    }
     super.dispose();
   }
 
@@ -368,15 +484,25 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppConstants.surfaceDark.withValues(alpha: 0.5),
-        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+        ),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            _breadcrumbItem('/', _pathStack.length == 1, () => _navigateToPath('/')),
+            _breadcrumbItem(
+              '/',
+              _pathStack.length == 1,
+              () => _navigateToPath('/'),
+            ),
             for (int i = 0; i < parts.length; i++) ...[
-              Icon(Icons.chevron_right, size: 14, color: Colors.white.withValues(alpha: 0.3)),
+              Icon(
+                Icons.chevron_right,
+                size: 14,
+                color: Colors.white.withValues(alpha: 0.3),
+              ),
               _breadcrumbItem(
                 parts[i],
                 i == parts.length - 1,
@@ -395,7 +521,9 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: isActive ? AppConstants.primaryGreen.withValues(alpha: 0.1) : Colors.transparent,
+          color: isActive
+              ? AppConstants.primaryGreen.withValues(alpha: 0.1)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
@@ -403,7 +531,9 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
           style: GoogleFonts.jetBrainsMono(
             fontSize: 12,
             fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
-            color: isActive ? AppConstants.primaryGreen : Colors.white.withValues(alpha: 0.5),
+            color: isActive
+                ? AppConstants.primaryGreen
+                : Colors.white.withValues(alpha: 0.5),
           ),
         ),
       ),
@@ -418,9 +548,19 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.cloud_off_rounded, size: 64, color: Colors.white.withValues(alpha: 0.1)),
+              Icon(
+                Icons.cloud_off_rounded,
+                size: 64,
+                color: Colors.white.withValues(alpha: 0.1),
+              ),
               const SizedBox(height: 16),
-              Text(_error!, style: GoogleFonts.inter(color: Colors.white.withValues(alpha: 0.5)), textAlign: TextAlign.center),
+              Text(
+                _error!,
+                style: GoogleFonts.inter(
+                  color: Colors.white.withValues(alpha: 0.5),
+                ),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: () => context.pop(),
@@ -434,7 +574,9 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
     }
 
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen));
+      return const Center(
+        child: CircularProgressIndicator(color: AppConstants.primaryGreen),
+      );
     }
 
     if (_entries.isEmpty) {
@@ -442,9 +584,19 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.folder_open_rounded, size: 64, color: Colors.white.withValues(alpha: 0.1)),
+            Icon(
+              Icons.folder_open_rounded,
+              size: 64,
+              color: Colors.white.withValues(alpha: 0.1),
+            ),
             const SizedBox(height: 16),
-            Text('Empty directory', style: GoogleFonts.inter(fontSize: 16, color: Colors.white.withValues(alpha: 0.4))),
+            Text(
+              'Empty directory',
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                color: Colors.white.withValues(alpha: 0.4),
+              ),
+            ),
           ],
         ),
       );
@@ -485,7 +637,8 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
               child: Row(
                 children: [
                   Container(
-                    width: 36, height: 36,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
                       color: isDir
                           ? const Color(0xFF448AFF).withValues(alpha: 0.1)
@@ -493,9 +646,13 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
-                      isDir ? Icons.folder_rounded : Icons.insert_drive_file_rounded,
+                      isDir
+                          ? Icons.folder_rounded
+                          : Icons.insert_drive_file_rounded,
                       size: 18,
-                      color: isDir ? const Color(0xFF448AFF) : Colors.white.withValues(alpha: 0.4),
+                      color: isDir
+                          ? const Color(0xFF448AFF)
+                          : Colors.white.withValues(alpha: 0.4),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -525,7 +682,11 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
                     ),
                   ),
                   if (!isDir)
-                    Icon(Icons.chevron_right, size: 16, color: Colors.white.withValues(alpha: 0.15)),
+                    Icon(
+                      Icons.chevron_right,
+                      size: 16,
+                      color: Colors.white.withValues(alpha: 0.15),
+                    ),
                 ],
               ),
             ),
@@ -538,6 +699,8 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
   void _showEntryMenu(SftpEntry entry) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) => ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -546,9 +709,13 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
           child: Container(
             decoration: BoxDecoration(
               color: AppConstants.surfaceDark.withValues(alpha: 0.9),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
               border: Border(
-                top: BorderSide(color: AppConstants.primaryGreen.withValues(alpha: 0.15)),
+                top: BorderSide(
+                  color: AppConstants.primaryGreen.withValues(alpha: 0.15),
+                ),
               ),
             ),
             child: SafeArea(
@@ -557,7 +724,8 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
                 children: [
                   Center(
                     child: Container(
-                      width: 36, height: 4,
+                      width: 36,
+                      height: 4,
                       margin: const EdgeInsets.only(top: 12, bottom: 8),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.15),
@@ -566,26 +734,56 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    child: Text(entry.filename,
-                        style: GoogleFonts.jetBrainsMono(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      entry.filename,
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                   const Divider(color: Colors.white10),
                   if (!entry.isDirectory)
                     ListTile(
-                      leading: const Icon(Icons.download_rounded, color: AppConstants.primaryGreen),
-                      title: Text('Download to Clipboard', style: GoogleFonts.inter()),
-                      onTap: () { Navigator.pop(context); _downloadEntry(entry); },
+                      leading: const Icon(
+                        Icons.download_rounded,
+                        color: AppConstants.primaryGreen,
+                      ),
+                      title: Text(
+                        'Download to Clipboard',
+                        style: GoogleFonts.inter(),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _downloadEntry(entry);
+                      },
                     ),
                   ListTile(
-                    leading: const Icon(Icons.edit_rounded, color: Color(0xFF448AFF)),
+                    leading: const Icon(
+                      Icons.edit_rounded,
+                      color: Color(0xFF448AFF),
+                    ),
                     title: Text('Rename', style: GoogleFonts.inter()),
-                    onTap: () { Navigator.pop(context); _renameEntry(entry); },
+                    onTap: () {
+                      Navigator.pop(context);
+                      _renameEntry(entry);
+                    },
                   ),
                   ListTile(
-                    leading: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                    leading: const Icon(
+                      Icons.delete_outline_rounded,
+                      color: Colors.red,
+                    ),
                     title: Text('Delete', style: GoogleFonts.inter()),
-                    onTap: () { Navigator.pop(context); _deleteEntry(entry); },
+                    onTap: () {
+                      Navigator.pop(context);
+                      _deleteEntry(entry);
+                    },
                   ),
                   const SizedBox(height: 8),
                 ],

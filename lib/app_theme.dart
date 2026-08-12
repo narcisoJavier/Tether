@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'utils/constants.dart';
 
-/// Dark theme for OPA — Apple TUI aesthetic.
+/// Dark theme for Tether — Apple TUI aesthetic.
 ///
 /// Design language:
 ///   • OLED black canvas with iOS gray surfaces
@@ -17,12 +17,14 @@ class AppTheme {
 
   static ThemeData dark() {
     // Override status bar to be transparent with light icons.
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: AppConstants.bgDeep,
-      systemNavigationBarIconBrightness: Brightness.light,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: AppConstants.bgDeep,
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
+    );
 
     final colorScheme = ColorScheme.fromSeed(
       seedColor: AppConstants.primaryGreen,
@@ -148,9 +150,7 @@ class AppTheme {
         foregroundColor: Colors.black,
         elevation: 6,
         highlightElevation: 10,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         extendedPadding: const EdgeInsets.symmetric(horizontal: 24),
         extendedTextStyle: GoogleFonts.inter(
           fontWeight: FontWeight.w700,
@@ -163,7 +163,10 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppConstants.inputFill,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppConstants.border0),
@@ -181,17 +184,11 @@ class AppTheme {
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: Color(0xFFFF5370),
-            width: 1.2,
-          ),
+          borderSide: const BorderSide(color: Color(0xFFFF5370), width: 1.2),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: Color(0xFFFF5370),
-            width: 1.5,
-          ),
+          borderSide: const BorderSide(color: Color(0xFFFF5370), width: 1.5),
         ),
         hintStyle: GoogleFonts.inter(
           color: Colors.white.withValues(alpha: 0.28),
@@ -237,10 +234,7 @@ class AppTheme {
             color: AppConstants.primaryGreen.withValues(alpha: 0.2),
           ),
         ),
-        contentTextStyle: GoogleFonts.inter(
-          color: Colors.white,
-          fontSize: 14,
-        ),
+        contentTextStyle: GoogleFonts.inter(color: Colors.white, fontSize: 14),
         elevation: 8,
         insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       ),
@@ -291,10 +285,7 @@ class AppTheme {
           borderRadius: BorderRadius.circular(14),
           side: const BorderSide(color: AppConstants.border0),
         ),
-        textStyle: GoogleFonts.inter(
-          color: Colors.white,
-          fontSize: 14,
-        ),
+        textStyle: GoogleFonts.inter(color: Colors.white, fontSize: 14),
       ),
 
       // ── Chip ─────────────────────────────────────────────────────────────
@@ -302,9 +293,7 @@ class AppTheme {
         backgroundColor: AppConstants.surface1,
         selectedColor: AppConstants.primaryGreen.withValues(alpha: 0.15),
         side: const BorderSide(color: AppConstants.border0),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         labelStyle: GoogleFonts.inter(
           fontSize: 13,
           fontWeight: FontWeight.w500,
@@ -365,19 +354,35 @@ class AppTheme {
         displayLarge: monoBase.displayLarge?.copyWith(color: Colors.white),
         displayMedium: monoBase.displayMedium?.copyWith(color: Colors.white),
         displaySmall: monoBase.displaySmall?.copyWith(color: Colors.white),
-        headlineLarge: interTheme.headlineLarge?.copyWith(fontWeight: FontWeight.w800),
-        headlineMedium: interTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
-        headlineSmall: interTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-        titleLarge: interTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-        titleMedium: interTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-        titleSmall: interTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+        headlineLarge: interTheme.headlineLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+        ),
+        headlineMedium: interTheme.headlineMedium?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+        headlineSmall: interTheme.headlineSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+        titleLarge: interTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+        titleMedium: interTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+        titleSmall: interTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
         bodyLarge: interTheme.bodyLarge,
         bodyMedium: interTheme.bodyMedium,
         bodySmall: interTheme.bodySmall?.copyWith(
           color: Colors.white.withValues(alpha: 0.55),
         ),
-        labelLarge: interTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-        labelMedium: interTheme.labelMedium?.copyWith(fontWeight: FontWeight.w500),
+        labelLarge: interTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+        labelMedium: interTheme.labelMedium?.copyWith(
+          fontWeight: FontWeight.w500,
+        ),
         labelSmall: interTheme.labelSmall?.copyWith(
           color: Colors.white.withValues(alpha: 0.55),
         ),
@@ -430,21 +435,18 @@ class GlassDecoration {
 
   /// Sheet-level glass — for bottom sheets and modals.
   static BoxDecoration sheet({double borderRadius = 24}) => BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AppConstants.surface2,
-            AppConstants.surface1,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(borderRadius),
-        border: const Border(
-          top: BorderSide(color: AppConstants.border1),
-          left: BorderSide(color: AppConstants.border0),
-          right: BorderSide(color: AppConstants.border0),
-        ),
-      );
+    gradient: const LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [AppConstants.surface2, AppConstants.surface1],
+    ),
+    borderRadius: BorderRadius.circular(borderRadius),
+    border: const Border(
+      top: BorderSide(color: AppConstants.border1),
+      left: BorderSide(color: AppConstants.border0),
+      right: BorderSide(color: AppConstants.border0),
+    ),
+  );
 }
 
 /// Flat shadow — minimal drop shadow for elevated elements.
@@ -453,19 +455,19 @@ class NeonGlow {
 
   /// Subtle shadow at low elevation.
   static List<BoxShadow> of(Color color, {double intensity = 1.0}) => [
-        BoxShadow(
-          color: color.withValues(alpha: 0.08 * intensity),
-          blurRadius: 4 * intensity,
-          offset: const Offset(0, 2),
-        ),
-      ];
+    BoxShadow(
+      color: color.withValues(alpha: 0.08 * intensity),
+      blurRadius: 4 * intensity,
+      offset: const Offset(0, 2),
+    ),
+  ];
 
   /// Minimal dot shadow.
   static List<BoxShadow> dot(Color color) => [
-        BoxShadow(
-          color: color.withValues(alpha: 0.3),
-          blurRadius: 3,
-          offset: const Offset(0, 1),
-        ),
-      ];
+    BoxShadow(
+      color: color.withValues(alpha: 0.3),
+      blurRadius: 3,
+      offset: const Offset(0, 1),
+    ),
+  ];
 }

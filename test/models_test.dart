@@ -7,13 +7,13 @@ import 'package:tether/models/tunnel_config.dart';
 void main() {
   group('ConnectionProfile', () {
     ConnectionProfile makeProfile() => ConnectionProfile(
-          id: 'p1',
-          label: 'My PC',
-          host: '192.168.1.50',
-          port: 22,
-          username: 'admin',
-          authType: AuthType.password,
-        );
+      id: 'p1',
+      label: 'My PC',
+      host: '192.168.1.50',
+      port: 22,
+      username: 'admin',
+      authType: AuthType.password,
+    );
 
     test('displayName formats as user@host', () {
       final p = makeProfile();
@@ -30,38 +30,41 @@ void main() {
       expect(p.shortLabel, 'admin@192.168.1.50');
     });
 
-    test('effectiveEnvironment returns explicit value if present or infers fallback', () {
-      final pProd = ConnectionProfile(
-        id: '1',
-        label: 'prod-server',
-        host: '10.0.0.1',
-        port: 22,
-        username: 'root',
-        authType: AuthType.password,
-      );
-      expect(pProd.effectiveEnvironment, 'Prod');
+    test(
+      'effectiveEnvironment returns explicit value if present or infers fallback',
+      () {
+        final pProd = ConnectionProfile(
+          id: '1',
+          label: 'prod-server',
+          host: '10.0.0.1',
+          port: 22,
+          username: 'root',
+          authType: AuthType.password,
+        );
+        expect(pProd.effectiveEnvironment, 'Prod');
 
-      final pStg = ConnectionProfile(
-        id: '2',
-        label: 'api-gateway-stg',
-        host: '10.0.0.2',
-        port: 22,
-        username: 'root',
-        authType: AuthType.password,
-      );
-      expect(pStg.effectiveEnvironment, 'Staging');
+        final pStg = ConnectionProfile(
+          id: '2',
+          label: 'api-gateway-stg',
+          host: '10.0.0.2',
+          port: 22,
+          username: 'root',
+          authType: AuthType.password,
+        );
+        expect(pStg.effectiveEnvironment, 'Staging');
 
-      final pExplicit = ConnectionProfile(
-        id: '3',
-        label: 'server',
-        host: '10.0.0.3',
-        port: 22,
-        username: 'root',
-        authType: AuthType.password,
-        environment: 'HomeLab',
-      );
-      expect(pExplicit.effectiveEnvironment, 'HomeLab');
-    });
+        final pExplicit = ConnectionProfile(
+          id: '3',
+          label: 'server',
+          host: '10.0.0.3',
+          port: 22,
+          username: 'root',
+          authType: AuthType.password,
+          environment: 'HomeLab',
+        );
+        expect(pExplicit.effectiveEnvironment, 'HomeLab');
+      },
+    );
 
     test('defaults: port-independent, colorIndex 0, not connected', () {
       final p = makeProfile();
@@ -76,10 +79,14 @@ void main() {
       final p = makeProfile();
       final after = DateTime.now();
 
-      expect(p.createdAt.isAfter(before.subtract(const Duration(seconds: 1))),
-          isTrue);
-      expect(p.createdAt.isBefore(after.add(const Duration(seconds: 1))),
-          isTrue);
+      expect(
+        p.createdAt.isAfter(before.subtract(const Duration(seconds: 1))),
+        isTrue,
+      );
+      expect(
+        p.createdAt.isBefore(after.add(const Duration(seconds: 1))),
+        isTrue,
+      );
       expect(p.updatedAt.isAtSameMomentAs(p.createdAt), isTrue);
     });
 
@@ -110,9 +117,10 @@ void main() {
       expect(updated.username, 'admin'); // unchanged
       // updatedAt should be bumped to ~now
       expect(
-          updated.updatedAt.isAfter(originalUpdatedAt) ||
-              updated.updatedAt.isAtSameMomentAs(DateTime.now()),
-          isTrue);
+        updated.updatedAt.isAfter(originalUpdatedAt) ||
+            updated.updatedAt.isAtSameMomentAs(DateTime.now()),
+        isTrue,
+      );
     });
 
     test('copyWith preserves createdAt (does not reset it)', () {
@@ -183,6 +191,24 @@ void main() {
       expect(updated.tunnels.length, 1);
       expect(updated.tunnels[0].type, TunnelType.dynamicSocks5);
     });
+
+    test('copyWith can clear nullable fields', () {
+      final p = makeProfile().copyWith(
+        password: 'secret',
+        keyId: 'key-1',
+        environment: 'Staging',
+      );
+
+      final cleared = p.copyWith(
+        password: null,
+        keyId: null,
+        environment: null,
+      );
+
+      expect(cleared.password, isNull);
+      expect(cleared.keyId, isNull);
+      expect(cleared.environment, isNull);
+    });
   });
 
   group('StoredKeyPair', () {
@@ -193,7 +219,7 @@ void main() {
         keyType: KeyType.ed25519,
         publicKey: 'ssh-ed25519 AAAA L',
       );
-      expect(k.secureStorageKey, 'opa_key_abc123');
+      expect(k.secureStorageKey, 'tether_key_abc123');
     });
 
     test('fingerprint includes label and key type name', () {
@@ -229,11 +255,11 @@ void main() {
 
   group('QuickCommand', () {
     QuickCommand makeCommand() => QuickCommand(
-          id: 'c1',
-          label: 'Start Agent',
-          command: 'echo hi',
-          profileId: 'p1',
-        );
+      id: 'c1',
+      label: 'Start Agent',
+      command: 'echo hi',
+      profileId: 'p1',
+    );
 
     test('defaults: colorIndex 0', () {
       final c = makeCommand();
@@ -271,11 +297,7 @@ void main() {
 
   group('TunnelConfig', () {
     test('defaults: localhost, port 0, enabled', () {
-      final t = TunnelConfig(
-        id: 't1',
-        label: 'Test',
-        type: TunnelType.local,
-      );
+      final t = TunnelConfig(id: 't1', label: 'Test', type: TunnelType.local);
       expect(t.localPort, 0);
       expect(t.remoteHost, 'localhost');
       expect(t.remotePort, 0);
@@ -326,7 +348,11 @@ void main() {
         'Remote',
       );
       expect(
-        TunnelConfig(id: 't', label: 'l', type: TunnelType.dynamicSocks5).typeLabel,
+        TunnelConfig(
+          id: 't',
+          label: 'l',
+          type: TunnelType.dynamicSocks5,
+        ).typeLabel,
         'SOCKS5',
       );
     });

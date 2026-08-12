@@ -15,6 +15,7 @@ import '../models/terminal_tab.dart';
 import '../services/key_service.dart';
 import '../services/pending_quick_command_provider.dart';
 import '../services/profile_storage_service.dart';
+import '../services/quick_command_layout_service.dart';
 import '../services/ssh_service.dart';
 import '../services/tab_manager.dart';
 import '../services/tailscale_provider.dart';
@@ -133,12 +134,14 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     );
 
     // Register with TabManager.
-    _tabManager.addTab(TerminalTab(
-      tabId: tabId,
-      profileId: profileId,
-      label: profile.shortLabel,
-      isConnecting: true,
-    ));
+    _tabManager.addTab(
+      TerminalTab(
+        tabId: tabId,
+        profileId: profileId,
+        label: profile.shortLabel,
+        isConnecting: true,
+      ),
+    );
 
     // Wire resize handler for this tab's terminal.
     terminal.onResize = (width, height, pixelWidth, pixelHeight) {
@@ -176,12 +179,15 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
   // ── SSH connection ───────────────────────────────────────────────────────
 
   Future<void> _connectTab(_TabData tab) async {
+    if (!mounted || !_tabs.containsKey(tab.tabId)) return;
     tab.isConnecting = true;
+    tab.error = null;
     setState(() {});
 
     final version = await AppVersion.get();
+    if (!mounted || !_tabs.containsKey(tab.tabId)) return;
     tab.terminal.write(
-      '\x1b[1;32m⬡ OPA — OpenSSH Pocket Agent v$version\x1b[0m\r\n\r\n'
+      '\x1b[1;32m⬡ Tether — Pocket SSH & Mesh Terminal v$version\x1b[0m\r\n\r\n'
       '\x1b[33mConnecting...\x1b[0m\r\n',
     );
 
@@ -207,12 +213,14 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
 
       String? privateKey;
       if (profile.keyId != null) {
-        privateKey =
-            await ref.read(keyServiceProvider).getPrivateKey(profile.keyId!);
+        privateKey = await ref
+            .read(keyServiceProvider)
+            .getPrivateKey(profile.keyId!);
       }
 
-      final securePassword =
-          await ref.read(profileStorageProvider).getPassword(profile.id);
+      final securePassword = await ref
+          .read(profileStorageProvider)
+          .getPassword(profile.id);
       final effectivePassword = securePassword ?? profile.password;
 
       await sshService.connect(
@@ -222,17 +230,20 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
         keepalive: Duration(seconds: ref.read(terminalKeepaliveProvider)),
         socket: sock,
       );
+      if (!mounted || !_tabs.containsKey(tab.tabId)) return;
 
-      tab.terminal
-          .write('\x1b[32m✓ Connected to ${profile.displayName}\x1b[0m\r\n\r\n');
+      tab.terminal.write(
+        '\x1b[32m✓ Connected to ${profile.displayName}\x1b[0m\r\n\r\n',
+      );
 
       // Auto-start tunnels.
       if (profile.tunnels.isNotEmpty) {
-        final tunnelCount =
-            await sshService.autoStartTunnels(profile.tunnels);
+        final tunnelCount = await sshService.autoStartTunnels(profile.tunnels);
+        if (!mounted || !_tabs.containsKey(tab.tabId)) return;
         if (tunnelCount > 0) {
           tab.terminal.write(
-              '\x1b[36m⇌ $tunnelCount tunnel(s) auto-started\x1b[0m\r\n\r\n');
+            '\x1b[36m⇌ $tunnelCount tunnel(s) auto-started\x1b[0m\r\n\r\n',
+          );
         }
       }
 
@@ -247,8 +258,10 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
       setState(() {});
 
       await storage.updateConnectionStatus(tab.profileId, true);
+      if (!mounted || !_tabs.containsKey(tab.tabId)) return;
       _maybeStartShell(tab);
     } catch (e) {
+      if (!mounted || !_tabs.containsKey(tab.tabId)) return;
       tab.isConnecting = false;
       tab.error = e.toString();
       tab.terminal.write('\r\n\x1b[31m✗ Connection failed:\x1b[0m $e\r\n\r\n');
@@ -296,8 +309,9 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
 
       // Send initial command if provided.
       if (tab.initialCommand != null && tab.initialCommand!.isNotEmpty) {
-        session.stdinSink
-            .add(Uint8List.fromList(utf8.encode(tab.initialCommand!)));
+        session.stdinSink.add(
+          Uint8List.fromList(utf8.encode(tab.initialCommand!)),
+        );
         tab.initialCommand = null;
       }
 
@@ -329,20 +343,14 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
         },
       );
 
-      _tabManager.updateTab(
-        tab.tabId,
-        (t) => t.copyWith(shellStarted: true),
-      );
+      _tabManager.updateTab(tab.tabId, (t) => t.copyWith(shellStarted: true));
 
       setState(() {});
     } catch (e) {
       if (!mounted) return;
       tab.terminal.write('\r\n\x1b[31m✗ Shell error:\x1b[0m $e\r\n');
       tab.isConnected = false;
-      _tabManager.updateTab(
-        tab.tabId,
-        (t) => t.copyWith(isConnected: false),
-      );
+      _tabManager.updateTab(tab.tabId, (t) => t.copyWith(isConnected: false));
       setState(() {});
     }
   }
@@ -385,7 +393,7 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     tab.stdoutSub?.cancel();
     tab.stdoutSub = null;
     final sshService = ref.read(sshServiceProvider(tab.profileId));
-    sshService.disconnect();
+    unawaited(sshService.disconnect());
 
     // Remove from tracking.
     _tabManager.removeTab(tabId);
@@ -404,6 +412,26 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     }
 
     setState(() {});
+  }
+
+  /// Retries a failed connection without forcing the user to close the tab.
+  Future<void> _retryTab(_TabData tab) async {
+    if (!mounted || !_tabs.containsKey(tab.tabId) || tab.isConnecting) return;
+
+    tab.stdoutSub?.cancel();
+    tab.stdoutSub = null;
+    tab.isConnected = false;
+    tab.shellStarted = false;
+    tab.error = null;
+    tab.terminal.write('\r\n\x1b[33mRetrying connection...\x1b[0m\r\n');
+    setState(() {});
+
+    try {
+      await ref.read(sshServiceProvider(tab.profileId)).disconnect();
+    } catch (_) {
+      // A failed session may already be disconnected; continue with retry.
+    }
+    await _connectTab(tab);
   }
 
   // ── Terminal controls ───────────────────────────────────────────────────
@@ -428,10 +456,13 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     final initialPendingTab = ref.read(pendingTerminalTabProvider);
     if (initialPendingTab != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && ref.read(pendingTerminalTabProvider) == initialPendingTab) {
+        if (mounted &&
+            ref.read(pendingTerminalTabProvider) == initialPendingTab) {
           ref.read(pendingTerminalTabProvider.notifier).state = null;
-          _createTabNow(initialPendingTab.profileId,
-              initialCommand: initialPendingTab.initialCommand);
+          _createTabNow(
+            initialPendingTab.profileId,
+            initialCommand: initialPendingTab.initialCommand,
+          );
         }
       });
     }
@@ -459,7 +490,8 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     final initialPendingCmd = ref.read(pendingQuickCommandProvider);
     if (initialPendingCmd != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && ref.read(pendingQuickCommandProvider) == initialPendingCmd) {
+        if (mounted &&
+            ref.read(pendingQuickCommandProvider) == initialPendingCmd) {
           ref.read(pendingQuickCommandProvider.notifier).state = null;
           final tab = _tabs[initialPendingCmd.tabId];
           if (tab != null && !tab.disposed) {
@@ -476,7 +508,9 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     // Auto-bounce to Home when zero tabs exist and no tab request is pending
     if (_tabOrder.isEmpty && initialPendingTab == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _tabOrder.isEmpty && ref.read(pendingTerminalTabProvider) == null) {
+        if (mounted &&
+            _tabOrder.isEmpty &&
+            ref.read(pendingTerminalTabProvider) == null) {
           context.go('/');
         }
       });
@@ -506,21 +540,26 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
       },
       child: Scaffold(
         backgroundColor: AppConstants.backgroundDark,
-        body: Column(
-          children: [
-            // ── Unified Single Header Bar (36px, OLED Glass, SafeArea protected) ──
-            SafeArea(
-              bottom: false,
-              child: _buildUnifiedHeader(tab, isLandscape),
-            ),
+        body: Padding(
+          padding: EdgeInsets.only(
+            bottom: 64 + MediaQuery.paddingOf(context).bottom,
+          ),
+          child: Column(
+            children: [
+              // ── Unified Single Header Bar (36px, OLED Glass, SafeArea protected) ──
+              SafeArea(
+                bottom: false,
+                child: _buildUnifiedHeader(tab, isLandscape),
+              ),
 
-            // ── Terminal area or empty state ──
-            Expanded(
-              child: _tabOrder.isEmpty
-                  ? _buildEmptyState()
-                  : _buildTerminalBody(tab, isLandscape, showKeyboardBar),
-            ),
-          ],
+              // ── Terminal area or empty state ──
+              Expanded(
+                child: _tabOrder.isEmpty
+                    ? _buildEmptyState()
+                    : _buildTerminalBody(tab, isLandscape, showKeyboardBar),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -639,8 +678,8 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     final stateColor = tab.isConnected
         ? AppConstants.primaryGreen
         : tab.isConnecting
-            ? const Color(0xFFFFAB40)
-            : Colors.redAccent;
+        ? const Color(0xFFFFAB40)
+        : Colors.redAccent;
 
     return GestureDetector(
       onTap: () => _switchTab(index),
@@ -737,115 +776,128 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
 
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
       backgroundColor: AppConstants.surface2,
       barrierColor: Colors.black.withValues(alpha: 0.7),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Drag handle
-            Center(
-              child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-              child: Text(
-                'Open New Terminal Tab',
-                style: GoogleFonts.inter(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (profiles.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Center(
-                  child: Column(
-                    children: [
-                      Text(
-                        'No saved server connections yet.',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: Colors.white.withValues(alpha: 0.5),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          context.go('/profile/new');
-                        },
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: Text('Add Connection', style: GoogleFonts.inter()),
-                      ),
-                    ],
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(ctx).height * 0.78,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Drag handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-              )
-            else
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  itemCount: profiles.length,
-                  itemBuilder: (context, index) {
-                    final p = profiles[index];
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                        color: AppConstants.surface1,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.06),
-                        ),
-                      ),
-                      child: ListTile(
-                        title: Text(
-                          p.label,
-                          style: GoogleFonts.inter(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                        subtitle: Text(
-                          '${p.username}@${p.host}:${p.port}',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 12,
-                            color: Colors.white.withValues(alpha: 0.45),
-                          ),
-                        ),
-                        trailing: const Icon(
-                          Icons.add_circle_outline_rounded,
-                          color: AppConstants.primaryGreen,
-                          size: 22,
-                        ),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          _createTabNow(p.id);
-                        },
-                      ),
-                    );
-                  },
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 4,
+                ),
+                child: Text(
+                  'Open New Terminal Tab',
+                  style: GoogleFonts.inter(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
               ),
-            const SizedBox(height: 16),
-          ],
+              const SizedBox(height: 12),
+              if (profiles.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Text(
+                          'No saved server connections yet.',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: Colors.white.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            context.go('/profile/new');
+                          },
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: Text(
+                            'Add Connection',
+                            style: GoogleFonts.inter(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    itemCount: profiles.length,
+                    itemBuilder: (context, index) {
+                      final p = profiles[index];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: AppConstants.surface1,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.06),
+                          ),
+                        ),
+                        child: ListTile(
+                          title: Text(
+                            p.label,
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${p.username}@${p.host}:${p.port}',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.45),
+                            ),
+                          ),
+                          trailing: const Icon(
+                            Icons.add_circle_outline_rounded,
+                            color: AppConstants.primaryGreen,
+                            size: 22,
+                          ),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _createTabNow(p.id);
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
@@ -854,145 +906,169 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
   /// Opens a bottom sheet showing quick commands for the current profile.
   void _showQuickCommandModalSheet(_TabData tab) {
     final storage = ref.read(profileStorageProvider);
-    final commands = storage.listCommandsForProfile(tab.profileId);
+    final layout = ref.read(quickCommandLayoutProvider);
+    final commands = layout.orderItems(
+      storage.listCommandsForProfile(tab.profileId),
+      (command) => 'saved:${command.id}',
+    );
     final allCommands = storage.listCommands();
-    final displayCommands = commands.isNotEmpty ? commands : allCommands;
+    final displayCommands = commands.isNotEmpty
+        ? commands
+        : layout.orderItems(allCommands, (command) => 'saved:${command.id}');
 
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
       backgroundColor: AppConstants.surface2,
       barrierColor: Colors.black.withValues(alpha: 0.7),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Drag handle
-            Center(
-              child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(2),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(ctx).height * 0.78,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Drag handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-              child: Row(
-                children: [
-                  const Icon(Icons.bolt_rounded,
-                      color: AppConstants.accentAmber, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Execute Quick Command',
-                    style: GoogleFonts.inter(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (displayCommands.isEmpty)
               Padding(
-                padding: const EdgeInsets.all(24),
-                child: Center(
-                  child: Column(
-                    children: [
-                      Text(
-                        'No saved quick commands.',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: Colors.white.withValues(alpha: 0.5),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          context.go('/commands');
-                        },
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: Text('Manage Commands', style: GoogleFonts.inter()),
-                      ),
-                    ],
-                  ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 4,
                 ),
-              )
-            else
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  itemCount: displayCommands.length,
-                  itemBuilder: (context, index) {
-                    final cmd = displayCommands[index];
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                        color: AppConstants.surface1,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.06),
-                        ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.bolt_rounded,
+                      color: AppConstants.accentAmber,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Execute Quick Command',
+                      style: GoogleFonts.inter(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
                       ),
-                      child: ListTile(
-                        leading: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppConstants.accentAmber.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.terminal_rounded,
-                            size: 18,
-                            color: AppConstants.accentAmber,
-                          ),
-                        ),
-                        title: Text(
-                          cmd.label,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (displayCommands.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Text(
+                          'No saved quick commands.',
                           style: GoogleFonts.inter(
                             fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                        subtitle: Text(
-                          cmd.command,
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 12,
                             color: Colors.white.withValues(alpha: 0.5),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        trailing: const Icon(
-                          Icons.play_arrow_rounded,
-                          color: AppConstants.primaryGreen,
-                          size: 22,
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            context.go('/commands');
+                          },
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: Text(
+                            'Manage Commands',
+                            style: GoogleFonts.inter(),
+                          ),
                         ),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          final execStr = cmd.command.endsWith('\n')
-                              ? cmd.command
-                              : '${cmd.command}\n';
-                          tab.terminal.textInput(execStr);
-                        },
-                      ),
-                    );
-                  },
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    itemCount: displayCommands.length,
+                    itemBuilder: (context, index) {
+                      final cmd = displayCommands[index];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: AppConstants.surface1,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.06),
+                          ),
+                        ),
+                        child: ListTile(
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppConstants.accentAmber.withValues(
+                                alpha: 0.1,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.terminal_rounded,
+                              size: 18,
+                              color: AppConstants.accentAmber,
+                            ),
+                          ),
+                          title: Text(
+                            cmd.label,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          subtitle: Text(
+                            cmd.command,
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.5),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: const Icon(
+                            Icons.play_arrow_rounded,
+                            color: AppConstants.primaryGreen,
+                            size: 22,
+                          ),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            final execStr = cmd.command.endsWith('\n')
+                                ? cmd.command
+                                : '${cmd.command}\n';
+                            tab.terminal.textInput(execStr);
+                          },
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-            const SizedBox(height: 16),
-          ],
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
@@ -1001,7 +1077,10 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
   // ── Terminal body ───────────────────────────────────────────────────────
 
   Widget _buildTerminalBody(
-      _TabData? tab, bool isLandscape, bool showKeyboardBar) {
+    _TabData? tab,
+    bool isLandscape,
+    bool showKeyboardBar,
+  ) {
     if (tab == null) return _buildEmptyState();
 
     final mq = MediaQuery.of(context);
@@ -1013,7 +1092,7 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     if (!tab.userZoomed) {
       final sizeChanged =
           (tab.lastTerminalSize.width - areaWidth).abs() > 4 ||
-              (tab.lastTerminalSize.height - areaHeight).abs() > 4;
+          (tab.lastTerminalSize.height - areaHeight).abs() > 4;
       if (sizeChanged || tab.lastTerminalSize == Size.zero) {
         final targetCols = isLandscape
             ? AppConstants.targetMinColsLandscape
@@ -1028,6 +1107,8 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
 
     return Column(
       children: [
+        if (tab.error != null && !tab.isConnected)
+          _buildConnectionErrorBanner(tab),
         // Terminal view
         Expanded(
           child: GestureDetector(
@@ -1065,9 +1146,52 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     );
   }
 
+  Widget _buildConnectionErrorBanner(_TabData tab) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.redAccent.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.cloud_off_rounded,
+            size: 17,
+            color: Colors.redAccent,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Connection failed. Check the profile and try again.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: Colors.white.withValues(alpha: 0.7),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => unawaited(_retryTab(tab)),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.redAccent,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
   double _computeOptimalFontSize(double areaWidth, int targetCols) {
-    final computed =
-        areaWidth / (targetCols * AppConstants.charWidthRatio);
+    final computed = areaWidth / (targetCols * AppConstants.charWidthRatio);
     return computed.clamp(AppConstants.minFontSize, AppConstants.maxFontSize);
   }
 
@@ -1254,8 +1378,11 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
             _KeyDef('CTRL', _sendCtrlC, color: const Color(0xFFFF5252)),
           ]
         : [
-            _KeyDef('⚡', () => _showQuickCommandModalSheet(tab),
-                color: AppConstants.accentAmber),
+            _KeyDef(
+              '⚡',
+              () => _showQuickCommandModalSheet(tab),
+              color: AppConstants.accentAmber,
+            ),
             _KeyDef('TAB', () => tab.terminal.keyInput(TerminalKey.tab)),
             _KeyDef('ESC', () => tab.terminal.keyInput(TerminalKey.escape)),
             _KeyDef('↑', () => tab.terminal.keyInput(TerminalKey.arrowUp)),
@@ -1277,11 +1404,13 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: keys
-                .map((k) => _SpecialKeyButton(
-                      label: k.label,
-                      onPressed: k.onPressed,
-                      color: k.color,
-                    ))
+                .map(
+                  (k) => _SpecialKeyButton(
+                    label: k.label,
+                    onPressed: k.onPressed,
+                    color: k.color,
+                  ),
+                )
                 .toList(),
           ),
         ),

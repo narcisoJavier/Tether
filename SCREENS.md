@@ -1,6 +1,6 @@
-# OPA — Screen Architecture & Detailed UI/UX Specifications
+# Tether — Screen Architecture & Detailed UI/UX Specifications
 
-> **Application**: OpenSSH Pocket Agent (OPA) v0.5.0  
+> **Application**: Tether v0.5.0
 > **Design System**: Apple TUI 2.0 (OLED Black, Glassmorphism, System Blue `#0A84FF`, JetBrains Mono)  
 > **Routing Framework**: GoRouter with `StatefulShellRoute` persistent terminal branch  
 
@@ -18,7 +18,7 @@
 | 6 | **Quick Commands Screen** | `/commands` | Shell Automation Hub | Saved command cards, profile binder, preset importer, 1-tap execute |
 | 7 | **Preset Library Screen** | `/presets` | CLI Tool Catalog | 20+ built-in developer preset chips (Docker, Nginx, K8s, System) |
 | 8 | **SSH Keys Manager Screen** | `/keys` | Keystore & Keygen | Ed25519 / RSA key pair generator, Keystore storage, OpenSSH public key export |
-| 9 | **Tailscale Mesh Screen** | `/tunnel/:id` | WireGuard Tailnet | Node status card, peer IP list, MagicDNS info, reconnect & auth actions |
+| 9 | **Tunnel Screen** | `/tunnel/:id` | SSH Port Forwarding | Local, remote, and dynamic SOCKS5 tunnel definitions with start/stop controls |
 | 10 | **Settings & About Screen** | `/settings` | Configuration & Updates | Biometric lock switch, dark theme options, GitHub release update check (SemVer + ETag) |
 
 ---
@@ -42,8 +42,8 @@
 * **UI/UX Breakdown**:
   * **Tailscale Node Status Card**: Top banner displaying active Tailscale VPN status (Connected IPv4, MagicDNS suffix, node state).
   * **Environment Filter Chips**: Quick filtering (`All`, `Prod 🔴`, `Staging 🟡`, `HomeLab 🟢`).
-  * **Connection Tiles (`ConnectionTile`)**: RPG stat card style with pip status bars, host address, SSH port, authentication type badge, and 1-tap SSH / 1-tap SFTP action buttons.
-  * **Expandable FAB Menu**: Floating action button expanding into `New Server`, `Manage Keys`, and `Quick Commands`.
+  * **Connection Tiles (`ConnectionTile`)**: RPG stat card style with honest `AUTH` / `SHELL` / `TUNNL` bars, host address, SSH port, authentication type badge, 1-tap SSH / 1-tap SFTP actions, and a visible profile action sheet for Telemetry, Tunnels, Quick Commands, and editing.
+  * **Expandable FAB Menu**: Floating action button expanding into `New Server` and `Manage Keys`.
 * **State & Navigation**: Tapping a server tile writes `TerminalTabRequest` to `pendingTerminalTabProvider` and navigates to `/terminal`.
 
 ---
@@ -90,14 +90,17 @@
 * **File**: [`lib/screens/quick_commands_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/quick_commands_screen.dart)
 * **Purpose**: Manage saved command snippets and one-tap scripts.
 * **UI/UX Breakdown**:
-  * **Command Cards**: Monospace code preview, label, target server profile badge, and execute button.
-  * **Tab Picker Dialog**: When executing a command, prompts the user to pick an active terminal tab or launch a new tab.
-  * **Preset Library Trigger**: Quick link to import pre-configured developer tools.
+  * **Command Deck**: Searchable preset launcher with uniform AI, development, and system folders; system actions use the same two-column tile layout as the other groups.
+  * **Layout Edit Mode**: Long-press any preset or saved-command tile to enter arrangement mode and drag it to reorder it; preset tiles can also move between groups. The arrange button remains pinned in the app bar for an explicit edit session.
+  * **Folder Resizing**: Arrange mode exposes persisted `− / row count / +` controls for changing how many preset rows each category folder shows; folder height fits the populated tiles.
+  * **Compact Empty State**: A static inline hint replaces the animated empty-state glow so the deck remains the visual focus when no saved commands exist.
+  * **Tab Picker Dialog**: When executing a command, prioritizes active terminal tabs, with options to launch a new tab or run once without a persistent terminal.
+  * **Runtime Profile Selection**: Commands without a fixed profile prompt for a target server before showing the tab picker.
 
 ---
 
 ### 7. 📚 Preset Library Screen (`PresetLibraryScreen`)
-* **File**: [`lib/screens/preset_library_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/preset_library_screen.dart)
+* **File**: [`lib/screens/preset_editor_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/preset_editor_screen.dart)
 * **Purpose**: Catalog of 20+ ready-to-use developer CLI command presets.
 * **UI/UX Breakdown**:
   * **Category Tabs**: `Docker`, `Nginx`, `Kubernetes`, `System Monitoring`, `Git`, `Tailscale`.
@@ -106,7 +109,7 @@
 ---
 
 ### 8. 🔑 SSH Keys Manager Screen (`KeyManagerScreen`)
-* **File**: [`lib/screens/key_manager_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/key_manager_screen.dart)
+* **File**: [`lib/screens/key_management_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/key_management_screen.dart)
 * **Purpose**: Generate, store, and export SSH key pairs securely.
 * **UI/UX Breakdown**:
   * **Key Generator Modal**: Supports Ed25519 (recommended) and RSA (2048/4096-bit).
@@ -117,11 +120,11 @@
 
 ### 9. 🌐 Tailscale Mesh Screen (`TunnelScreen`)
 * **File**: [`lib/screens/tunnel_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/tunnel_screen.dart)
-* **Purpose**: Inspect embedded Tailscale WireGuard network status.
+* **Purpose**: Configure and control SSH port forwarding for a saved profile.
 * **UI/UX Breakdown**:
-  * **Node Info Card**: Self IP (IPv4/IPv6), MagicDNS domain suffix, Node ID.
-  * **Peer Devices List**: Shows online/offline Tailnet peer devices with ping round-trip latency.
-  * **Re-auth / Key Input**: Re-authenticate node or update Tailscale auth key.
+  * **Tunnel List**: Shows configured local, remote, and dynamic SOCKS5 forwards.
+  * **Active State**: Start/stop controls reflect the connected SSH session.
+  * **Add Tunnel Sheet**: Validates local/remote ports and uses safe-area-aware input handling.
 
 ---
 

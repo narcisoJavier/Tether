@@ -12,17 +12,17 @@ class _TailscaleException implements Exception {
 
 class _TailscaleDialException extends _TailscaleException {
   const _TailscaleDialException(String message, {Object? cause})
-      : super(message, 'DIAL', cause: cause);
+    : super(message, 'DIAL', cause: cause);
 }
 
 class _TailscaleAuthException extends _TailscaleException {
   const _TailscaleAuthException(String message, {Object? cause})
-      : super(message, 'AUTH', cause: cause);
+    : super(message, 'AUTH', cause: cause);
 }
 
 class _TailscaleConnectException extends _TailscaleException {
   const _TailscaleConnectException(String message, {Object? cause})
-      : super(message, 'CONNECT', cause: cause);
+    : super(message, 'CONNECT', cause: cause);
 }
 
 void main() {

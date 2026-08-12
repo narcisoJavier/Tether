@@ -27,11 +27,7 @@ class AgentPreset {
 }
 
 /// Categories for grouping presets.
-enum PresetCategory {
-  agent,
-  devtool,
-  system,
-}
+enum PresetCategory { agent, devtool, system }
 
 /// Catalog of built-in agent harness and dev-tool presets.
 class AgentPresets {

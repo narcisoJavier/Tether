@@ -40,6 +40,9 @@ class ProfileStorageService {
   /// Delete a connection profile.
   Future<void> deleteProfile(String id) async {
     await _profilesBox.delete(id);
+    // Passwords are stored separately in the Android Keystore and must be
+    // removed with the profile to avoid orphaned credentials.
+    await deletePassword(id);
   }
 
   /// Update the last connection success flag.
@@ -60,9 +63,7 @@ class ProfileStorageService {
 
   /// Get commands associated with a specific profile.
   List<QuickCommand> listCommandsForProfile(String profileId) {
-    return _commandsBox.values
-        .where((c) => c.profileId == profileId)
-        .toList()
+    return _commandsBox.values.where((c) => c.profileId == profileId).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
@@ -88,10 +89,7 @@ class ProfileStorageService {
 
   /// Store a password in secure storage for the given profile ID.
   Future<void> savePassword(String profileId, String password) async {
-    await _secureStorage.write(
-      key: 'ssh_password_$profileId',
-      value: password,
-    );
+    await _secureStorage.write(key: 'ssh_password_$profileId', value: password);
   }
 
   /// Delete a password from secure storage.

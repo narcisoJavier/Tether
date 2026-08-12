@@ -16,6 +16,7 @@ import 'screens/sftp_screen.dart';
 import 'screens/preset_editor_screen.dart';
 import 'screens/tunnel_screen.dart';
 import 'screens/welcome_back_screen.dart';
+import 'widgets/glass_bottom_nav_bar.dart';
 
 /// Top-level navigator key.
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -32,18 +33,15 @@ CustomTransitionPage<void> _buildTransitionPage({
     reverseTransitionDuration: const Duration(milliseconds: 250),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       return FadeTransition(
-        opacity: CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOut,
-        ),
+        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
         child: SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0.06, 0),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          )),
+          position:
+              Tween<Offset>(
+                begin: const Offset(0.06, 0),
+                end: Offset.zero,
+              ).animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+              ),
           child: child,
         ),
       );
@@ -62,11 +60,10 @@ class _AuthRefreshListenable extends ChangeNotifier {
   }
 }
 
-/// GoRouter configuration for OPA.
+/// GoRouter configuration for Tether.
 ///
-/// Uses [StatefulShellRoute.indexedStack] to keep the terminal tab screen alive
-/// across navigation. The [TabbedTerminalScreen] lives in its own branch so its
-/// SSH sessions and terminal state are preserved when the user goes back home.
+/// Uses [StatefulShellRoute.indexedStack] with 5 branches to preserve state across
+/// Home, Terminal, Commands, Keys, and Settings screens.
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshListenable = _AuthRefreshListenable(ref);
 
@@ -93,7 +90,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       // Biometric lock gate (route-based instead of widget-level)
-      if (lockEnabled && !isAuthenticated && !isLockRoute && !isOnboardingRoute) {
+      if (lockEnabled &&
+          !isAuthenticated &&
+          !isLockRoute &&
+          !isOnboardingRoute) {
         return '/lock';
       }
       if (isLockRoute && (!lockEnabled || isAuthenticated)) {
@@ -101,7 +101,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       // Welcome-back screen (second+ launch, if enabled)
-      if (isComplete && !isWelcomeRoute && !isLockRoute && onboardingService.shouldShowWelcomeBack()) {
+      if (isComplete &&
+          !isWelcomeRoute &&
+          !isLockRoute &&
+          onboardingService.shouldShowWelcomeBack()) {
         return '/welcome';
       }
       if (isWelcomeRoute && !onboardingService.shouldShowWelcomeBack()) {
@@ -114,17 +117,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // ── Full-screen routes (outside shell: lock, onboarding, welcome-back) ──
       GoRoute(
         path: '/lock',
-        pageBuilder: (context, state) => _buildTransitionPage(
-          child: const LockScreen(),
-          state: state,
-        ),
+        pageBuilder: (context, state) =>
+            _buildTransitionPage(child: const LockScreen(), state: state),
       ),
       GoRoute(
         path: '/onboarding',
-        pageBuilder: (context, state) => _buildTransitionPage(
-          child: const OnboardingScreen(),
-          state: state,
-        ),
+        pageBuilder: (context, state) =>
+            _buildTransitionPage(child: const OnboardingScreen(), state: state),
       ),
       GoRoute(
         path: '/welcome',
@@ -134,9 +133,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // ── Shell: tabbed terminal stays alive across navigation ──
+      // ── Shell: persistent glass bottom navigation bar across 5 branches ──
       StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) => navigationShell,
+        builder: (context, state, navigationShell) {
+          return Scaffold(
+            body: navigationShell,
+            extendBody: true,
+            bottomNavigationBar: GlassBottomNavBar(
+              navigationShell: navigationShell,
+            ),
+          );
+        },
         branches: [
           // Branch 0 — Home + sub-screens
           StatefulShellBranch(
@@ -186,30 +193,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     },
                   ),
                   GoRoute(
-                    path: 'keys',
-                    pageBuilder: (context, state) => _buildTransitionPage(
-                      child: const KeyManagementScreen(),
-                      state: state,
-                    ),
-                  ),
-                  GoRoute(
-                    path: 'commands',
-                    pageBuilder: (context, state) => _buildTransitionPage(
-                      child: const QuickCommandsScreen(),
-                      state: state,
-                    ),
-                  ),
-                  GoRoute(
                     path: 'presets',
                     pageBuilder: (context, state) => _buildTransitionPage(
                       child: const PresetEditorScreen(),
-                      state: state,
-                    ),
-                  ),
-                  GoRoute(
-                    path: 'settings',
-                    pageBuilder: (context, state) => _buildTransitionPage(
-                      child: const SettingsScreen(),
                       state: state,
                     ),
                   ),
@@ -225,6 +211,45 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/terminal',
                 pageBuilder: (context, state) => _buildTransitionPage(
                   child: const TabbedTerminalScreen(),
+                  state: state,
+                ),
+              ),
+            ],
+          ),
+
+          // Branch 2 — Commands
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/commands',
+                pageBuilder: (context, state) => _buildTransitionPage(
+                  child: const QuickCommandsScreen(),
+                  state: state,
+                ),
+              ),
+            ],
+          ),
+
+          // Branch 3 — Keys
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/keys',
+                pageBuilder: (context, state) => _buildTransitionPage(
+                  child: const KeyManagementScreen(),
+                  state: state,
+                ),
+              ),
+            ],
+          ),
+
+          // Branch 4 — Settings
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/settings',
+                pageBuilder: (context, state) => _buildTransitionPage(
+                  child: const SettingsScreen(),
                   state: state,
                 ),
               ),

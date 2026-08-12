@@ -14,7 +14,7 @@ class SshKeyEncoder {
 
   /// Generate a fresh Ed25519 key pair and return both the OpenSSH-format
   /// private key PEM and the single-line public key string.
-  static SshKeyMaterial generateEd25519({String comment = 'opa'}) {
+  static SshKeyMaterial generateEd25519({String comment = 'tether'}) {
     // pinenacl's `Keypair()` generates an X25519 (encryption) keypair by
     // default, NOT Ed25519. For SSH ed25519 keys we must use the signing
     // key directly: `SigningKey()` generates a random Ed25519 key.
@@ -25,13 +25,13 @@ class SshKeyEncoder {
     final publicKeyBytes = Uint8List.fromList(signingKey.verifyKey);
 
     final publicKey = _encodePublicKey(publicKeyBytes, comment);
-    final privateKeyPem =
-        _encodePrivateKeyPem(publicKeyBytes, seedBytes, comment);
-
-    return SshKeyMaterial(
-      publicKey: publicKey,
-      privateKeyPem: privateKeyPem,
+    final privateKeyPem = _encodePrivateKeyPem(
+      publicKeyBytes,
+      seedBytes,
+      comment,
     );
+
+    return SshKeyMaterial(publicKey: publicKey, privateKeyPem: privateKeyPem);
   }
 
   /// Build the single-line OpenSSH public key string:
@@ -138,12 +138,9 @@ class SshKeyEncoder {
 
 /// Output of key generation: both halves of the key pair as strings.
 class SshKeyMaterial {
-  const SshKeyMaterial({
-    required this.publicKey,
-    required this.privateKeyPem,
-  });
+  const SshKeyMaterial({required this.publicKey, required this.privateKeyPem});
 
-  /// Single-line OpenSSH public key (e.g. `ssh-ed25519 AAAA... opa`).
+  /// Single-line OpenSSH public key (e.g. `ssh-ed25519 AAAA... tether`).
   final String publicKey;
 
   /// OpenSSH-format private key PEM.
