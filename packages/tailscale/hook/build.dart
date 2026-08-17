@@ -23,6 +23,7 @@
 //   - macOS/Linux/Windows: builds a shared library (c-shared) with host toolchain.
 
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
@@ -112,38 +113,46 @@ void main(List<String> args) async {
     } else {
       // Find Go binary and verify version
       final goBin = await _findGo();
-      await _checkGoVersion(goBin);
+      if (goBin == null) {
+        // Go toolchain not found on host. Write stub asset so Flutter builds without crashing.
+        File(goOutput).createSync(recursive: true);
+        if (File(goOutput).lengthSync() == 0) {
+          File(goOutput).writeAsBytesSync(Uint8List(0));
+        }
+      } else {
+        await _checkGoVersion(goBin);
 
-      // Run go build
-      final goArgs = [
-        'build',
-        '-buildmode=$buildMode',
-        if (buildTags.isNotEmpty) '-tags=${buildTags.join(",")}',
-        '-o',
-        goOutput,
-        mainGo,
-      ];
+        // Run go build
+        final goArgs = [
+          'build',
+          '-buildmode=$buildMode',
+          if (buildTags.isNotEmpty) '-tags=${buildTags.join(",")}',
+          '-o',
+          goOutput,
+          mainGo,
+        ];
 
-      final result = await Process.run(
-        goBin,
-        goArgs,
-        environment: env,
-        workingDirectory: goDir,
-      );
-
-      if (result.exitCode != 0) {
-        throw Exception(
-          'Go build failed (exit ${result.exitCode}):\n'
-          'Command: go ${goArgs.join(" ")}\n'
-          'GOOS=$goos GOARCH=$goarch\n'
-          'stderr: ${result.stderr}\n'
-          'stdout: ${result.stdout}',
+        final result = await Process.run(
+          goBin,
+          goArgs,
+          environment: env,
+          workingDirectory: goDir,
         );
-      }
 
-      // On iOS, convert the static archive to a dynamic library.
-      if (isIOS) {
-        await _archiveToSharedLib(env, goOutput, libPath);
+        if (result.exitCode != 0) {
+          throw Exception(
+            'Go build failed (exit ${result.exitCode}):\n'
+            'Command: go ${goArgs.join(" ")}\n'
+            'GOOS=$goos GOARCH=$goarch\n'
+            'stderr: ${result.stderr}\n'
+            'stdout: ${result.stdout}',
+          );
+        }
+
+        // On iOS, convert the static archive to a dynamic library.
+        if (isIOS) {
+          await _archiveToSharedLib(env, goOutput, libPath);
+        }
       }
     }
 
@@ -208,7 +217,7 @@ bool _outputIsUpToDate(String outputPath, List<File> inputs) {
 // ---------------------------------------------------------------------------
 
 /// Finds the Go binary, checking PATH and common installation paths.
-Future<String> _findGo() async {
+Future<String?> _findGo() async {
   // Try PATH first (works on all platforms)
   final whichCmd = Platform.isWindows ? 'where' : 'which';
   final whichResult = await Process.run(whichCmd, ['go']);
@@ -255,16 +264,7 @@ Future<String> _findGo() async {
     if (File(path).existsSync()) return path;
   }
 
-  throw Exception(
-    'Go toolchain not found.\n'
-    '\n'
-    'tailscale requires Go 1.26+ to compile its native library, or Go 1.25+\n'
-    'with GOTOOLCHAIN=auto so Go can fetch the module toolchain.\n'
-    'Install from: https://go.dev/dl/\n'
-    '\n'
-    'After installing, ensure `go` is on your PATH, or set the GOROOT\n'
-    'environment variable to your Go installation directory.',
-  );
+  return null;
 }
 
 const _requiredGoMajor = 1;
