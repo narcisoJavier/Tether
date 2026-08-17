@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,6 +21,7 @@ import '../services/tailscale_provider.dart';
 import '../services/tailscale_ssh_socket.dart';
 import '../services/terminal_tab_request_provider.dart';
 import '../utils/constants.dart';
+import '../utils/agent_presets.dart';
 import '../utils/app_version.dart';
 import '../utils/terminal_settings_provider.dart';
 
@@ -404,9 +404,6 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     // Adjust active tab index.
     if (_tabOrder.isEmpty) {
       _activeTabIndex = 0;
-      if (mounted) {
-        context.go('/');
-      }
     } else if (_activeTabIndex >= _tabOrder.length) {
       _activeTabIndex = _tabOrder.length - 1;
     }
@@ -441,6 +438,152 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
   }
 
   // ── Build ───────────────────────────────────────────────────────────────
+
+  void _showSessionInfo(_TabData tab) {
+    final profile = ref.read(profileStorageProvider).getProfile(tab.profileId);
+    if (profile == null) return;
+
+    final status = tab.isConnected
+        ? 'Connected'
+        : tab.isConnecting
+        ? 'Connecting'
+        : 'Offline';
+    final statusColor = tab.isConnected
+        ? AppConstants.primaryGreen
+        : tab.isConnecting
+        ? AppConstants.accentAmber
+        : Colors.redAccent;
+
+    showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
+      backgroundColor: AppConstants.surface2,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'SESSION DETAILS',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.0,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${profile.shortLabel}  •  ${profile.username}@${profile.host}:${profile.port}',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 10,
+                  color: Colors.white.withValues(alpha: 0.45),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.07),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    _sessionDetailRow('STATUS', status, statusColor),
+                    _sessionDetailRow(
+                      'AUTH',
+                      profile.authType == AuthType.publicKey
+                          ? 'PUBLIC KEY'
+                          : 'PASSWORD',
+                      Colors.white.withValues(alpha: 0.75),
+                    ),
+                    _sessionDetailRow(
+                      'SHELL',
+                      tab.shellStarted
+                          ? '${tab.terminal.viewWidth} x ${tab.terminal.viewHeight} PTY'
+                          : 'NOT STARTED',
+                      Colors.white.withValues(alpha: 0.75),
+                    ),
+                    _sessionDetailRow(
+                      'TUNNELS',
+                      '${profile.tunnels.length} CONFIGURED',
+                      Colors.white.withValues(alpha: 0.75),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        context.go('/sftp/${profile.id}');
+                      },
+                      icon: const Icon(Icons.folder_open_rounded, size: 16),
+                      label: const Text('SFTP'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        context.go('/tunnel/${profile.id}');
+                      },
+                      icon: const Icon(Icons.swap_horiz_rounded, size: 16),
+                      label: const Text('TUNNELS'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sessionDetailRow(String label, String value, Color valueColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: Colors.white.withValues(alpha: 0.35),
+            ),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: valueColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -505,17 +648,6 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
       });
     }
 
-    // Auto-bounce to Home when zero tabs exist and no tab request is pending
-    if (_tabOrder.isEmpty && initialPendingTab == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted &&
-            _tabOrder.isEmpty &&
-            ref.read(pendingTerminalTabProvider) == null) {
-          context.go('/');
-        }
-      });
-    }
-
     final mq = MediaQuery.of(context);
     final size = mq.size;
     final isLandscape = size.width > size.height;
@@ -540,26 +672,23 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
       },
       child: Scaffold(
         backgroundColor: AppConstants.backgroundDark,
-        body: Padding(
-          padding: EdgeInsets.only(
-            bottom: 64 + MediaQuery.paddingOf(context).bottom,
-          ),
-          child: Column(
-            children: [
-              // ── Unified Single Header Bar (36px, OLED Glass, SafeArea protected) ──
-              SafeArea(
-                bottom: false,
-                child: _buildUnifiedHeader(tab, isLandscape),
-              ),
+        body: Column(
+          children: [
+            // ── Unified Single Header Bar (36px, OLED Glass, SafeArea protected) ──
+            SafeArea(
+              bottom: false,
+              child: _buildUnifiedHeader(tab, isLandscape),
+            ),
 
-              // ── Terminal area or empty state ──
-              Expanded(
-                child: _tabOrder.isEmpty
-                    ? _buildEmptyState()
-                    : _buildTerminalBody(tab, isLandscape, showKeyboardBar),
-              ),
-            ],
-          ),
+            if (tab != null) _buildSessionInfoBar(tab),
+
+            // ── Terminal area or empty state ──
+            Expanded(
+              child: _tabOrder.isEmpty
+                  ? _buildEmptyState()
+                  : _buildTerminalBody(tab, isLandscape, showKeyboardBar),
+            ),
+          ],
         ),
       ),
     );
@@ -568,8 +697,54 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
   // ── Unified Single Header Bar (Apple TUI 2.0) ───────────────────────────
 
   Widget _buildUnifiedHeader(_TabData? currentTab, bool isLandscape) {
-    if (_tabOrder.isEmpty) return const SizedBox.shrink();
     final h = isLandscape ? 32.0 : 36.0;
+
+    if (_tabOrder.isEmpty) {
+      return Container(
+        height: h + 8,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppConstants.surface0.withValues(alpha: 0.95),
+          border: Border(
+            bottom: BorderSide(
+              color: Colors.white.withValues(alpha: 0.08),
+              width: 0.8,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppConstants.accentBlue.withValues(alpha: 0.45),
+                ),
+              ),
+              child: const Icon(
+                Icons.code_rounded,
+                size: 12,
+                color: AppConstants.accentBlue,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'TERMINAL',
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.4,
+                color: Colors.white,
+              ),
+            ),
+            const Spacer(),
+            _buildNewTabButton(h),
+          ],
+        ),
+      );
+    }
 
     return Container(
       height: h,
@@ -650,9 +825,54 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
           // New Tab (+) button
           _buildNewTabButton(h - 6),
 
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
+
+          // Active-session switcher. This keeps session selection available
+          // without leaving the terminal or confusing it with profile setup.
+          GestureDetector(
+            onTap: _showActiveSessionSheet,
+            child: Container(
+              width: 28,
+              height: h - 6,
+              margin: const EdgeInsets.only(right: 4),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: Icon(
+                Icons.view_agenda_outlined,
+                size: 15,
+                color: Colors.white.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
 
           // Terminal Grid Dimensions (e.g. 76x66)
+          if (currentTab != null)
+            GestureDetector(
+              onTap: () => _showSessionInfo(currentTab),
+              child: Container(
+                width: 28,
+                height: h - 6,
+                margin: const EdgeInsets.only(right: 4),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                child: Icon(
+                  Icons.info_outline_rounded,
+                  size: 15,
+                  color: Colors.white.withValues(alpha: 0.6),
+                ),
+              ),
+            ),
+
           if (currentTab != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -670,6 +890,107 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSessionInfoBar(_TabData tab) {
+    final profile = ref.read(profileStorageProvider).getProfile(tab.profileId);
+    if (profile == null) return const SizedBox.shrink();
+
+    final statusColor = tab.isConnected
+        ? AppConstants.primaryGreen
+        : tab.isConnecting
+        ? AppConstants.accentAmber
+        : Colors.redAccent;
+    final status = tab.isConnected
+        ? 'CONNECTED'
+        : tab.isConnecting
+        ? 'CONNECTING'
+        : 'OFFLINE';
+
+    return GestureDetector(
+      onTap: () => _showSessionInfo(tab),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(8, 6, 8, 2),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppConstants.surface0.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: statusColor,
+                boxShadow: [
+                  BoxShadow(
+                    color: statusColor.withValues(alpha: 0.55),
+                    blurRadius: 5,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 7),
+            Flexible(
+              child: Text(
+                profile.shortLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              status,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                color: statusColor,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const Spacer(),
+            _buildSessionMetric('PORT', '${profile.port}'),
+            const SizedBox(width: 10),
+            _buildSessionMetric('SHELL', tab.shellStarted ? 'PTY' : '--'),
+            const SizedBox(width: 10),
+            _buildSessionMetric('TUNN', '${profile.tunnels.length}'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSessionMetric(String label, String value) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.jetBrainsMono(
+            fontSize: 7,
+            fontWeight: FontWeight.w800,
+            color: Colors.white.withValues(alpha: 0.3),
+          ),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.jetBrainsMono(
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            color: Colors.white.withValues(alpha: 0.68),
+          ),
+        ),
+      ],
     );
   }
 
@@ -769,307 +1090,227 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     );
   }
 
-  /// Opens a bottom sheet showing saved servers to connect in a new tab.
-  void _showServerPickerModalSheet() {
-    final storage = ref.read(profileStorageProvider);
-    final profiles = storage.listProfiles();
-
-    showModalBottomSheet(
+  /// Shows all live terminal tabs and lets the user switch without returning
+  /// to Home or reopening a profile.
+  void _showActiveSessionSheet() {
+    showModalBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       useSafeArea: true,
       backgroundColor: AppConstants.surface2,
-      barrierColor: Colors.black.withValues(alpha: 0.7),
+      showDragHandle: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => SafeArea(
+      builder: (sheetContext) => SafeArea(
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(ctx).height * 0.78,
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Drag handle
-              Center(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 12),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 4,
-                ),
-                child: Text(
-                  'Open New Terminal Tab',
-                  style: GoogleFonts.inter(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ACTIVE TERMINAL SESSIONS',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.9,
                     color: Colors.white,
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              if (profiles.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Center(
-                    child: Column(
-                      children: [
-                        Text(
-                          'No saved server connections yet.',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: Colors.white.withValues(alpha: 0.5),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(ctx);
-                            context.go('/profile/new');
-                          },
-                          icon: const Icon(Icons.add_rounded, size: 18),
-                          label: Text(
-                            'Add Connection',
-                            style: GoogleFonts.inter(),
-                          ),
-                        ),
-                      ],
-                    ),
+                const SizedBox(height: 4),
+                Text(
+                  'Select a tab to make it active.',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.45),
                   ),
-                )
-              else
+                ),
+                const SizedBox(height: 14),
                 Flexible(
-                  child: ListView.builder(
+                  child: ListView.separated(
                     shrinkWrap: true,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    itemCount: profiles.length,
+                    itemCount: _tabOrder.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
                     itemBuilder: (context, index) {
-                      final p = profiles[index];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          color: AppConstants.surface1,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.06),
-                          ),
-                        ),
-                        child: ListTile(
-                          title: Text(
-                            p.label,
-                            style: GoogleFonts.inter(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                          subtitle: Text(
-                            '${p.username}@${p.host}:${p.port}',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 12,
-                              color: Colors.white.withValues(alpha: 0.45),
-                            ),
-                          ),
-                          trailing: const Icon(
-                            Icons.add_circle_outline_rounded,
-                            color: AppConstants.primaryGreen,
-                            size: 22,
-                          ),
+                      final tab = _tabs[_tabOrder[index]];
+                      if (tab == null) return const SizedBox.shrink();
+                      final profile = ref
+                          .read(profileStorageProvider)
+                          .getProfile(tab.profileId);
+                      final isActive = index == _activeTabIndex;
+                      final statusColor = tab.isConnected
+                          ? AppConstants.primaryGreen
+                          : tab.isConnecting
+                          ? AppConstants.accentAmber
+                          : Colors.redAccent;
+                      final status = tab.isConnected
+                          ? 'CONNECTED'
+                          : tab.isConnecting
+                          ? 'CONNECTING'
+                          : 'OFFLINE';
+
+                      return Material(
+                        color: isActive
+                            ? AppConstants.accentBlue.withValues(alpha: 0.1)
+                            : AppConstants.surface1,
+                        borderRadius: BorderRadius.circular(14),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
                           onTap: () {
-                            Navigator.pop(ctx);
-                            _createTabNow(p.id);
+                            _switchTab(index);
+                            Navigator.pop(sheetContext);
                           },
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 9,
+                                  height: 9,
+                                  decoration: BoxDecoration(
+                                    color: statusColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        tab.label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.jetBrainsMono(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        profile == null
+                                            ? 'Connection removed'
+                                            : '${profile.username}@${profile.host}:${profile.port}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.jetBrainsMono(
+                                          fontSize: 10,
+                                          color: Colors.white.withValues(
+                                            alpha: 0.42,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Text(
+                                  status,
+                                  style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: statusColor,
+                                  ),
+                                ),
+                                if (isActive) ...[
+                                  const SizedBox(width: 8),
+                                  const Icon(
+                                    Icons.check_circle_rounded,
+                                    size: 16,
+                                    color: AppConstants.accentBlue,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
                         ),
                       );
                     },
                   ),
                 ),
-              const SizedBox(height: 16),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  /// Opens a bottom sheet showing quick commands for the current profile.
-  void _showQuickCommandModalSheet(_TabData tab) {
-    final storage = ref.read(profileStorageProvider);
-    final layout = ref.read(quickCommandLayoutProvider);
-    final commands = layout.orderItems(
-      storage.listCommandsForProfile(tab.profileId),
-      (command) => 'saved:${command.id}',
-    );
-    final allCommands = storage.listCommands();
-    final displayCommands = commands.isNotEmpty
-        ? commands
-        : layout.orderItems(allCommands, (command) => 'saved:${command.id}');
+  /// Opens an Apple TUI 2.0 bottom sheet showing saved servers to connect in a new tab.
+  void _showServerPickerModalSheet() {
+    final profiles = ref.read(profileStorageProvider).listProfiles();
 
     showModalBottomSheet(
       context: context,
       useRootNavigator: true,
       useSafeArea: true,
+      isScrollControlled: true,
       backgroundColor: AppConstants.surface2,
-      barrierColor: Colors.black.withValues(alpha: 0.7),
+      barrierColor: Colors.black.withValues(alpha: 0.75),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(ctx).height * 0.78,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Drag handle
-              Center(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 12),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 4,
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.bolt_rounded,
-                      color: AppConstants.accentAmber,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Execute Quick Command',
-                      style: GoogleFonts.inter(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (displayCommands.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Center(
-                    child: Column(
-                      children: [
-                        Text(
-                          'No saved quick commands.',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: Colors.white.withValues(alpha: 0.5),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(ctx);
-                            context.go('/commands');
-                          },
-                          icon: const Icon(Icons.add_rounded, size: 18),
-                          label: Text(
-                            'Manage Commands',
-                            style: GoogleFonts.inter(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                Flexible(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    itemCount: displayCommands.length,
-                    itemBuilder: (context, index) {
-                      final cmd = displayCommands[index];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          color: AppConstants.surface1,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.06),
-                          ),
-                        ),
-                        child: ListTile(
-                          leading: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: AppConstants.accentAmber.withValues(
-                                alpha: 0.1,
-                              ),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.terminal_rounded,
-                              size: 18,
-                              color: AppConstants.accentAmber,
-                            ),
-                          ),
-                          title: Text(
-                            cmd.label,
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                          subtitle: Text(
-                            cmd.command,
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 12,
-                              color: Colors.white.withValues(alpha: 0.5),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: const Icon(
-                            Icons.play_arrow_rounded,
-                            color: AppConstants.primaryGreen,
-                            size: 22,
-                          ),
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            final execStr = cmd.command.endsWith('\n')
-                                ? cmd.command
-                                : '${cmd.command}\n';
-                            tab.terminal.textInput(execStr);
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
+      builder: (ctx) => _ServerPickerSheet(
+        profiles: profiles,
+        onSelectProfile: (profileId) {
+          Navigator.pop(ctx);
+          _createTabNow(profileId);
+        },
+        onAddProfile: () {
+          Navigator.pop(ctx);
+          context.go('/profile/new');
+        },
+      ),
+    );
+  }
+
+  /// Opens an interactive Apple TUI 2.0 bottom sheet showing quick commands and presets.
+  void _showQuickCommandModalSheet(_TabData tab) {
+    final storage = ref.read(profileStorageProvider);
+    final layout = ref.read(quickCommandLayoutProvider);
+    final profileCommands = storage.listCommandsForProfile(tab.profileId);
+    final allSavedCommands = storage.listCommands();
+    final savedCommands = layout.orderItems(
+      profileCommands.isNotEmpty ? profileCommands : allSavedCommands,
+      (command) => 'saved:${command.id}',
+    );
+
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: AppConstants.surface2,
+      barrierColor: Colors.black.withValues(alpha: 0.75),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => _QuickCommandPickerSheet(
+        savedCommands: savedCommands,
+        onRunCommand: (cmd) {
+          Navigator.pop(ctx);
+          HapticFeedback.mediumImpact();
+          final sshService = ref.read(sshServiceProvider(tab.profileId));
+          final normalized = cmd.trim();
+          sshService.writeStdin(Uint8List.fromList(utf8.encode('$normalized\r')));
+        },
+        onPasteCommand: (cmd) {
+          Navigator.pop(ctx);
+          HapticFeedback.lightImpact();
+          final normalized = cmd.trim();
+          final sshService = ref.read(sshServiceProvider(tab.profileId));
+          sshService.writeStdin(Uint8List.fromList(utf8.encode(normalized)));
+        },
+        onManageCommands: () {
+          Navigator.pop(ctx);
+          context.go('/commands');
+        },
       ),
     );
   }
@@ -1196,169 +1437,263 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
   }
 
   Widget _buildEmptyState() {
-    final storage = ref.read(profileStorageProvider);
-    final profiles = storage.listProfiles();
+    final profiles = ref.read(profileStorageProvider).listProfiles();
+
+    if (profiles.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.terminal_rounded,
+                  size: 28,
+                  color: AppConstants.primaryGreen,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'No Active Sessions',
+                style: GoogleFonts.inter(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Add an SSH server or homelab node to start an interactive terminal tab.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: Colors.white.withValues(alpha: 0.45),
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 22),
+              ElevatedButton.icon(
+                onPressed: () => context.go('/profile/new'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppConstants.primaryGreen,
+                  foregroundColor: Colors.black,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
+                ),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: Text(
+                  'Add Server Connection',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 20),
-          // Glow terminal icon
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppConstants.accentBlue.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppConstants.accentBlue.withValues(alpha: 0.2),
-              ),
-            ),
-            child: const Icon(
-              Icons.terminal_rounded,
-              size: 48,
-              color: AppConstants.accentBlue,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'No Active Terminal Sessions',
-            style: GoogleFonts.inter(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Select a server below to launch an SSH terminal tab:',
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              color: Colors.white.withValues(alpha: 0.45),
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-
-          // Primary "Open New Tab" Button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _showServerPickerModalSheet,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppConstants.accentBlue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.add_rounded, size: 20),
-              label: Text(
-                'Open Terminal Session',
-                style: GoogleFonts.inter(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 28),
-
-          // Saved Connections List header
-          if (profiles.isNotEmpty) ...[
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'SAVED CONNECTIONS',
-                style: GoogleFonts.inter(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'SAVED HOSTS',
+                style: GoogleFonts.jetBrainsMono(
                   fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                  color: Colors.white.withValues(alpha: 0.4),
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.0,
+                  color: Colors.white.withValues(alpha: 0.5),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: profiles.length,
-              itemBuilder: (context, index) {
-                final p = profiles[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(
-                    color: AppConstants.surface0,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.06),
-                    ),
+              InkWell(
+                onTap: () => context.go('/profile/new'),
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.add_rounded,
+                        size: 14,
+                        color: AppConstants.primaryGreen,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'NEW HOST',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AppConstants.primaryGreen,
+                        ),
+                      ),
+                    ],
                   ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    leading: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppConstants.surface1,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.dns_rounded,
-                        size: 20,
-                        color: AppConstants.accentBlue,
-                      ),
-                    ),
-                    title: Text(
-                      p.label,
-                      style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    subtitle: Text(
-                      '${p.username}@${p.host}:${p.port}',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 12,
-                        color: Colors.white.withValues(alpha: 0.45),
-                      ),
-                    ),
-                    trailing: const Icon(
-                      Icons.play_arrow_rounded,
-                      color: AppConstants.primaryGreen,
-                      size: 24,
-                    ),
-                    onTap: () => _createTabNow(p.id),
-                  ),
-                );
-              },
-            ),
-          ],
-
-          const SizedBox(height: 16),
-
-          // Return Home link
-          TextButton.icon(
-            onPressed: () => context.go('/'),
-            icon: const Icon(Icons.arrow_back_rounded, size: 16),
-            label: Text(
-              'Back to Home Dashboard',
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: Colors.white.withValues(alpha: 0.4),
+                ),
               ),
-            ),
+            ],
           ),
+          const SizedBox(height: 12),
+          ...profiles.map((p) => _buildInlineServerCard(p)),
         ],
       ),
     );
   }
+
+  Widget _buildInlineServerCard(ConnectionProfile profile) {
+    final isTailscale = profile.connectionMethod == ConnectionMethod.tailscale;
+    final env = profile.effectiveEnvironment.toUpperCase();
+    final envColor = env == 'PROD'
+        ? const Color(0xFFFF453A)
+        : env == 'TAILSCALE'
+            ? AppConstants.accentBlue
+            : const Color(0xFF30D158);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: AppConstants.surface0,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _createTabNow(profile.id),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                // Icon
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: (isTailscale ? AppConstants.accentBlue : AppConstants.primaryGreen)
+                        .withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    isTailscale ? Icons.hub_rounded : Icons.dns_rounded,
+                    size: 18,
+                    color: isTailscale ? AppConstants.accentBlue : AppConstants.primaryGreen,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Host info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            profile.label,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: envColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: envColor.withValues(alpha: 0.3),
+                                width: 0.6,
+                              ),
+                            ),
+                            child: Text(
+                              env,
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w800,
+                                color: envColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${profile.username}@${profile.host}:${profile.port}  •  ${profile.authType == AuthType.publicKey ? 'Ed25519' : 'Password'}',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 10,
+                          color: Colors.white.withValues(alpha: 0.45),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                // Connect Action Capsule
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppConstants.primaryGreen.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppConstants.primaryGreen.withValues(alpha: 0.35),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'CONNECT',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: AppConstants.primaryGreen,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 12,
+                        color: AppConstants.primaryGreen,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+
 
   // ── Mobile keyboard bar ────────────────────────────────────────────────
 
@@ -1367,51 +1702,65 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
         ? AppConstants.keyboardBarHeightLandscape
         : AppConstants.keyboardBarHeightPortrait;
 
-    final keys = isLandscape
-        ? [
-            _KeyDef('TAB', () => tab.terminal.keyInput(TerminalKey.tab)),
-            _KeyDef('ESC', () => tab.terminal.keyInput(TerminalKey.escape)),
-            _KeyDef('↑', () => tab.terminal.keyInput(TerminalKey.arrowUp)),
-            _KeyDef('↓', () => tab.terminal.keyInput(TerminalKey.arrowDown)),
-            _KeyDef('←', () => tab.terminal.keyInput(TerminalKey.arrowLeft)),
-            _KeyDef('→', () => tab.terminal.keyInput(TerminalKey.arrowRight)),
-            _KeyDef('CTRL', _sendCtrlC, color: const Color(0xFFFF5252)),
-          ]
-        : [
-            _KeyDef(
-              '⚡',
-              () => _showQuickCommandModalSheet(tab),
-              color: AppConstants.accentAmber,
-            ),
-            _KeyDef('TAB', () => tab.terminal.keyInput(TerminalKey.tab)),
-            _KeyDef('ESC', () => tab.terminal.keyInput(TerminalKey.escape)),
-            _KeyDef('↑', () => tab.terminal.keyInput(TerminalKey.arrowUp)),
-            _KeyDef('↓', () => tab.terminal.keyInput(TerminalKey.arrowDown)),
-            _KeyDef('←', () => tab.terminal.keyInput(TerminalKey.arrowLeft)),
-            _KeyDef('→', () => tab.terminal.keyInput(TerminalKey.arrowRight)),
-            _KeyDef('CTRL', _sendCtrlC, color: const Color(0xFFFF5252)),
-            _KeyDef('/', () => tab.terminal.textInput('/')),
-            _KeyDef('|', () => tab.terminal.textInput('|')),
-            _KeyDef('-', () => tab.terminal.textInput('-')),
-          ];
+    final mq = MediaQuery.of(context);
+    final isKeyboardOpen = mq.viewInsets.bottom > 0;
 
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
-        child: Container(
+    final keys = [
+      _KeyDef('TAB', () => tab.terminal.keyInput(TerminalKey.tab)),
+      _KeyDef('ESC', () => tab.terminal.keyInput(TerminalKey.escape)),
+      _KeyDef('CTRL', _sendCtrlC, color: const Color(0xFFFF5252)),
+      _KeyDef('↑', () => tab.terminal.keyInput(TerminalKey.arrowUp)),
+      _KeyDef('↓', () => tab.terminal.keyInput(TerminalKey.arrowDown)),
+      _KeyDef('←', () => tab.terminal.keyInput(TerminalKey.arrowLeft)),
+      _KeyDef('→', () => tab.terminal.keyInput(TerminalKey.arrowRight)),
+      _KeyDef('/', () => tab.terminal.textInput('/')),
+      _KeyDef('|', () => tab.terminal.textInput('|')),
+      _KeyDef('-', () => tab.terminal.textInput('-')),
+      _KeyDef('~', () => tab.terminal.textInput('~')),
+      _KeyDef('\$', () => tab.terminal.textInput('\$')),
+      _KeyDef('&', () => tab.terminal.textInput('&')),
+      _KeyDef(':', () => tab.terminal.textInput(':')),
+      _KeyDef(
+        'CLR',
+        () {
+          final sshService = ref.read(sshServiceProvider(tab.profileId));
+          sshService.writeStdin(Uint8List.fromList(utf8.encode('clear\r')));
+        },
+        color: AppConstants.accentBlue,
+      ),
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF0C0F17).withValues(alpha: 0.95),
+        border: Border(
+          top: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 0.8,
+          ),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        bottom: !isKeyboardOpen,
+        child: SizedBox(
           height: barHeight,
-          color: AppConstants.surfaceDark.withValues(alpha: 0.8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: keys
-                .map(
-                  (k) => _SpecialKeyButton(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              children: keys.map((k) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: _SpecialKeyButton(
                     label: k.label,
                     onPressed: k.onPressed,
                     color: k.color,
                   ),
-                )
-                .toList(),
+                );
+              }).toList(),
+            ),
           ),
         ),
       ),
@@ -1469,25 +1818,39 @@ class _SpecialKeyButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveColor = color ?? Colors.white.withValues(alpha: 0.75);
+
     return Material(
-      color: Colors.transparent,
+      color: Colors.white.withValues(alpha: 0.04),
+      borderRadius: BorderRadius.circular(7),
       child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(6),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onPressed();
+        },
+        borderRadius: BorderRadius.circular(7),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 4,
+          ),
           decoration: BoxDecoration(
             border: Border.all(
-              color: (color ?? Colors.white).withValues(alpha: 0.15),
+              color: (color != null)
+                  ? color!.withValues(alpha: 0.45)
+                  : Colors.white.withValues(alpha: 0.12),
+              width: 0.8,
             ),
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(7),
           ),
-          child: Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: color ?? Colors.white.withValues(alpha: 0.7),
+          child: Center(
+            child: Text(
+              label,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: effectiveColor,
+              ),
             ),
           ),
         ),
@@ -1495,3 +1858,825 @@ class _SpecialKeyButton extends StatelessWidget {
     );
   }
 }
+
+// ── Apple TUI 2.0 Server Picker Modal Sheet ─────────────────────────────────
+
+class _ServerPickerSheet extends StatefulWidget {
+  const _ServerPickerSheet({
+    required this.profiles,
+    required this.onSelectProfile,
+    required this.onAddProfile,
+  });
+
+  final List<ConnectionProfile> profiles;
+  final ValueChanged<String> onSelectProfile;
+  final VoidCallback onAddProfile;
+
+  @override
+  State<_ServerPickerSheet> createState() => _ServerPickerSheetState();
+}
+
+class _ServerPickerSheetState extends State<_ServerPickerSheet> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _selectedEnv = 'ALL';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _searchCtrl.text.trim().toLowerCase();
+    final filtered = widget.profiles.where((p) {
+      if (_selectedEnv != 'ALL') {
+        if (p.effectiveEnvironment.toUpperCase() != _selectedEnv) return false;
+      }
+      if (query.isEmpty) return true;
+      return p.label.toLowerCase().contains(query) ||
+          p.host.toLowerCase().contains(query) ||
+          p.username.toLowerCase().contains(query) ||
+          p.effectiveEnvironment.toLowerCase().contains(query);
+    }).toList();
+
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with Icon, Title, and "+ NEW HOST" action
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: AppConstants.accentBlue.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppConstants.accentBlue.withValues(alpha: 0.4),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.code_rounded,
+                      size: 16,
+                      color: AppConstants.accentBlue,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'NEW TERMINAL TAB',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.0,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        'Select host to mount interactive shell',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: Colors.white.withValues(alpha: 0.45),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  OutlinedButton.icon(
+                    onPressed: widget.onAddProfile,
+                    icon: const Icon(Icons.add_rounded, size: 14),
+                    label: Text(
+                      'NEW HOST',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppConstants.primaryGreen,
+                      side: BorderSide(
+                        color: AppConstants.primaryGreen.withValues(alpha: 0.4),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Search Input Bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: (_) => setState(() {}),
+                  style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Search hosts by name, IP, or tag...',
+                    hintStyle: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: Colors.white.withValues(alpha: 0.35),
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      size: 18,
+                      color: Colors.white.withValues(alpha: 0.4),
+                    ),
+                    suffixIcon: _searchCtrl.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear_rounded, size: 16),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              setState(() {});
+                            },
+                          )
+                        : null,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+            ),
+            // Filter Pills (ALL, PROD, TAILSCALE, DEV)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: ['ALL', 'PROD', 'TAILSCALE', 'DEV'].map((env) {
+                  final isSelected = _selectedEnv == env;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: InkWell(
+                      onTap: () => setState(() => _selectedEnv = env),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppConstants.accentBlue.withValues(alpha: 0.2)
+                              : Colors.white.withValues(alpha: 0.03),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppConstants.accentBlue.withValues(alpha: 0.6)
+                                : Colors.white.withValues(alpha: 0.06),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Text(
+                          env,
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: isSelected
+                                ? AppConstants.accentBlue
+                                : Colors.white.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 6),
+            // Server List
+            if (filtered.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(28),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.dns_rounded,
+                        size: 32,
+                        color: Colors.white.withValues(alpha: 0.2),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        widget.profiles.isEmpty
+                            ? 'No saved server connections yet'
+                            : 'No matching hosts found',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final p = filtered[index];
+                    final isTailscale = p.connectionMethod == ConnectionMethod.tailscale;
+                    final env = p.effectiveEnvironment.toUpperCase();
+                    final envColor = env == 'PROD'
+                        ? const Color(0xFFFF453A)
+                        : env == 'TAILSCALE'
+                            ? AppConstants.accentBlue
+                            : const Color(0xFF30D158);
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: AppConstants.surface1.withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.07),
+                        ),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(14),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: () => widget.onSelectProfile(p.id),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                // Host Icon
+                                Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: (isTailscale ? AppConstants.accentBlue : AppConstants.primaryGreen)
+                                        .withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    isTailscale ? Icons.hub_rounded : Icons.dns_rounded,
+                                    size: 18,
+                                    color: isTailscale ? AppConstants.accentBlue : AppConstants.primaryGreen,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                // Host info
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            p.label,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                            decoration: BoxDecoration(
+                                              color: envColor.withValues(alpha: 0.12),
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(
+                                                color: envColor.withValues(alpha: 0.3),
+                                                width: 0.6,
+                                              ),
+                                            ),
+                                            child: Text(
+                                              env,
+                                              style: GoogleFonts.jetBrainsMono(
+                                                fontSize: 8,
+                                                fontWeight: FontWeight.w800,
+                                                color: envColor,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        '${p.username}@${p.host}:${p.port}',
+                                        style: GoogleFonts.jetBrainsMono(
+                                          fontSize: 11,
+                                          color: Colors.white.withValues(alpha: 0.5),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Connect Button
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppConstants.primaryGreen.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: AppConstants.primaryGreen.withValues(alpha: 0.35),
+                                      width: 0.8,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'CONNECT',
+                                        style: GoogleFonts.jetBrainsMono(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppConstants.primaryGreen,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Icon(
+                                        Icons.arrow_forward_rounded,
+                                        size: 12,
+                                        color: AppConstants.primaryGreen,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Apple TUI 2.0 Quick Command Picker Modal Sheet ──────────────────────────
+
+class _QuickCommandPickerSheet extends StatefulWidget {
+  const _QuickCommandPickerSheet({
+    required this.savedCommands,
+    required this.onRunCommand,
+    required this.onPasteCommand,
+    required this.onManageCommands,
+  });
+
+  final List<dynamic> savedCommands;
+  final ValueChanged<String> onRunCommand;
+  final ValueChanged<String> onPasteCommand;
+  final VoidCallback onManageCommands;
+
+  @override
+  State<_QuickCommandPickerSheet> createState() =>
+      _QuickCommandPickerSheetState();
+}
+
+class _QuickCommandPickerSheetState extends State<_QuickCommandPickerSheet> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _selectedCategory = 'ALL';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _searchCtrl.text.trim().toLowerCase();
+
+    // Map saved commands into uniform view model
+    final savedItems = widget.savedCommands.map((c) {
+      return _CommandItem(
+        id: c.id as String,
+        label: c.label as String,
+        command: c.command as String,
+        description: 'Saved custom command',
+        icon: Icons.bolt_rounded,
+        color: AppConstants.accentAmber,
+        category: 'SAVED',
+      );
+    }).toList();
+
+    // Map presets into uniform view model
+    final presetItems = AgentPresets.all.map((p) => _CommandItem(
+      id: p.id,
+      label: p.label,
+      command: p.command,
+      description: p.description,
+      icon: p.icon,
+      color: p.color,
+      category: p.category == PresetCategory.system
+          ? 'SYSTEM'
+          : p.category == PresetCategory.devtool
+              ? 'DEV TOOLS'
+              : 'AI AGENTS',
+    )).toList();
+
+    final allItems = [...savedItems, ...presetItems];
+
+    final filtered = allItems.where((item) {
+      if (_selectedCategory != 'ALL') {
+        if (item.category.toUpperCase() != _selectedCategory) return false;
+      }
+      if (query.isEmpty) return true;
+      return item.label.toLowerCase().contains(query) ||
+          item.command.toLowerCase().contains(query) ||
+          item.description.toLowerCase().contains(query) ||
+          item.category.toLowerCase().contains(query);
+    }).toList();
+
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with Icon, Title, and Manage action
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: AppConstants.accentAmber.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppConstants.accentAmber.withValues(alpha: 0.4),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.bolt_rounded,
+                      size: 18,
+                      color: AppConstants.accentAmber,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'QUICK COMMANDS',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.0,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        'Tap RUN to execute directly, or PASTE to edit',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: Colors.white.withValues(alpha: 0.45),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  OutlinedButton.icon(
+                    onPressed: widget.onManageCommands,
+                    icon: const Icon(Icons.tune_rounded, size: 14),
+                    label: Text(
+                      'MANAGE',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppConstants.accentAmber,
+                      side: BorderSide(
+                        color: AppConstants.accentAmber.withValues(alpha: 0.4),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Search Input Bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: (_) => setState(() {}),
+                  style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Search commands or presets (e.g. htop, docker)...',
+                    hintStyle: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: Colors.white.withValues(alpha: 0.35),
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      size: 18,
+                      color: Colors.white.withValues(alpha: 0.4),
+                    ),
+                    suffixIcon: _searchCtrl.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear_rounded, size: 16),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              setState(() {});
+                            },
+                          )
+                        : null,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+            ),
+            // Filter Pills
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: ['ALL', 'SAVED', 'SYSTEM', 'DEV TOOLS', 'AI AGENTS'].map((cat) {
+                  final isSelected = _selectedCategory == cat;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: InkWell(
+                      onTap: () => setState(() => _selectedCategory = cat),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppConstants.accentAmber.withValues(alpha: 0.2)
+                              : Colors.white.withValues(alpha: 0.03),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppConstants.accentAmber.withValues(alpha: 0.6)
+                                : Colors.white.withValues(alpha: 0.06),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Text(
+                          cat,
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: isSelected
+                                ? AppConstants.accentAmber
+                                : Colors.white.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 6),
+            // Command List
+            if (filtered.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(28),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.search_off_rounded,
+                        size: 32,
+                        color: Colors.white.withValues(alpha: 0.2),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'No matching commands found',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final item = filtered[index];
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: AppConstants.surface1.withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.07),
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            // Icon
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: item.color.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(
+                                item.icon,
+                                size: 18,
+                                color: item.color,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // Details
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          item.label,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                          vertical: 1,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: item.color.withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          item.category,
+                                          style: GoogleFonts.jetBrainsMono(
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.w800,
+                                            color: item.color,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    item.command,
+                                    style: GoogleFonts.jetBrainsMono(
+                                      fontSize: 11,
+                                      color: Colors.white.withValues(alpha: 0.5),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Paste action
+                            IconButton(
+                              tooltip: 'Paste into terminal',
+                              icon: const Icon(Icons.content_paste_rounded, size: 16),
+                              color: AppConstants.accentBlue,
+                              style: IconButton.styleFrom(
+                                backgroundColor: AppConstants.accentBlue.withValues(alpha: 0.12),
+                                padding: const EdgeInsets.all(8),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              onPressed: () => widget.onPasteCommand(item.command),
+                            ),
+                            const SizedBox(width: 6),
+                            // Run action
+                            ElevatedButton.icon(
+                              onPressed: () => widget.onRunCommand(item.command),
+                              icon: const Icon(Icons.play_arrow_rounded, size: 14),
+                              label: Text(
+                                'RUN',
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppConstants.primaryGreen,
+                                foregroundColor: Colors.black,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CommandItem {
+  const _CommandItem({
+    required this.id,
+    required this.label,
+    required this.command,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.category,
+  });
+
+  final String id;
+  final String label;
+  final String command;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final String category;
+}
+

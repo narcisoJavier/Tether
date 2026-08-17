@@ -435,78 +435,83 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
               ),
             ),
             child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    ListTile(
-                      leading: Container(
+              child: Material(
+                color: Colors.transparent,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
                         width: 36,
-                        height: 36,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
-                          color: AppConstants.primaryGreen.withValues(
-                            alpha: 0.1,
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      ListTile(
+                        leading: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: AppConstants.primaryGreen.withValues(
+                              alpha: 0.1,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.add_circle_outline_rounded,
-                          color: AppConstants.primaryGreen,
-                          size: 20,
-                        ),
-                      ),
-                      title: Text(
-                        'Generate Ed25519 Key',
-                        style: GoogleFonts.inter(fontWeight: FontWeight.w500),
-                      ),
-                      subtitle: Text(
-                        'Recommended',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: AppConstants.primaryGreen.withValues(
-                            alpha: 0.7,
+                          child: const Icon(
+                            Icons.add_circle_outline_rounded,
+                            color: AppConstants.primaryGreen,
+                            size: 20,
                           ),
                         ),
-                      ),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _generateEd25519();
-                      },
-                    ),
-                    ListTile(
-                      leading: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF448AFF).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(10),
+                        title: Text(
+                          'Generate Ed25519 Key',
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w500),
                         ),
-                        child: const Icon(
-                          Icons.upload_file_rounded,
-                          color: Color(0xFF448AFF),
-                          size: 20,
+                        subtitle: Text(
+                          'Recommended',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: AppConstants.primaryGreen.withValues(
+                              alpha: 0.7,
+                            ),
+                          ),
                         ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _generateEd25519();
+                        },
                       ),
-                      title: Text(
-                        'Import Existing Key',
-                        style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+                      ListTile(
+                        leading: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFF448AFF,
+                            ).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.upload_file_rounded,
+                            color: Color(0xFF448AFF),
+                            size: 20,
+                          ),
+                        ),
+                        title: Text(
+                          'Import Existing Key',
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _importKey();
+                        },
                       ),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _importKey();
-                      },
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

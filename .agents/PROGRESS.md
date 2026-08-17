@@ -55,12 +55,25 @@
 - **Terminal layout safety**: Reserved the persistent navigation height for terminal content and capped terminal server/command sheets to the available viewport.
 - **Profile credential cleanup**: Profile deletion now removes its separately stored Keystore password in the storage service itself.
 - **Sheet lifecycle safety**: SFTP and tunnel sheets now use root/safe-area presentation; tunnel form controllers are disposed when the sheet closes.
-- **Repository documentation**: Refreshed `README.md`, `AGENTS.md`, and screen notes with current routes, storage boundaries, verification commands, and known limitations.
+### 6. Android Adaptive Icon & Autonomous Animated Onboarding Overhaul
+- **Android Adaptive Icon Subsystem**: Created `values/colors.xml`, `mipmap-anydpi-v26/ic_launcher.xml`, and `ic_launcher_round.xml`. Generated 108dp canvas foregrounds and legacy density buckets to eliminate Android launcher white-circle containment.
+- **Zero-Flash Cold Boot**: Switched `LaunchTheme` to `@android:style/Theme.Black.NoTitleBar` and dark launch background in `drawable/launch_background.xml`.
+- **Card-First Autonomous Onboarding Redesign**: Built Dribbble/Muzli-inspired component-driven slides (VT100 Terminal stream, Mesh Topology peer rotation, Cryptographic Keystore Enclave scan, Command Deck Execution stream) featuring weightless float, automated live simulation loops, and expanding pill navigation controls.
+- **Onboarding Replay & Route Accessibility**: Removed aggressive `/onboarding` redirection from `app_router.dart` and added a "Replay Onboarding Tour" action in `settings_screen.dart` so the tour can be viewed on demand anytime.
+- **Minimal Apple TUI Onboarding Screen** ([`lib/screens/onboarding_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/onboarding_screen.dart)): Fully aligned with the ASCII chained-snake logo aesthetic with monospace topology diagrams, hardware keystore enclaves, command decks, and monospace step badges.
+- **Lock Screen Logo Integration** ([`lib/screens/lock_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/lock_screen.dart)): Embedded the high-res Tether logo asset with ambient green glow.
+### 7. Immersive Terminal & Virtual Keyboard Accessory Bar Overhaul
+- **Full-Screen Terminal Experience**: Hidden the 5-branch persistent bottom navigation bar when on the `/terminal` branch to maximize vertical VT100 columns and rows without layout fighting or navigation clashes.
+- **Dynamic Mobile Keyboard Accessory Bar**: Fixed horizontal `RenderFlex` overflow via smooth bouncing horizontal scroll ribbon. Dynamically attaches directly on top of the soft keyboard (`viewInsets.bottom > 0`) or docks cleanly above the system gesture bar when the keyboard is dismissed.
+- **Streamlined Special Key Strip**: Standardized key actions to `TAB`, `ESC`, `CTRL` (sends `0x03` SIGINT process interrupt), `↑ ↓ ← →`, `/`, `|`, `-`, `~`, `$`, `&`, `:`, and `CLR` (`clear\r`).
+- **Interactive In-Terminal Quick Command Deck**: Fully redesigned `_QuickCommandPickerSheet` with real-time fuzzy search, filter chips (`ALL`, `SAVED`, `SYSTEM`, `DEV TOOLS`, `AI AGENTS`), dual execution actions (`RUN >_` with instant carriage-return piped directly to SSH stdin, and `PASTE 📋` to edit arguments), and deep-link shortcut to Command Deck manager.
+- **Clean Single Drag Handles**: Eliminated duplicate stacked drag bars across bottom modal sheets by relying on Flutter's native Material3 `BottomSheetThemeData.showDragHandle`.
 
 ---
 
 ## 🧪 Verification Status
 
-- ✅ `dart analyze` — **No issues found! (0 errors, 0 warnings, 0 lints)**
-- ✅ Unit tests in `test/update_service_test.dart` passing.
-- ✅ App successfully built and running on Android Studio emulator (`emulator-5554`).
+- ✅ `dart analyze lib/` — **No issues found! (0 errors, 0 warnings, 0 lints)**
+- ✅ App icons & splash themes verified.
+- ✅ Android build system configured.
+

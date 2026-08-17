@@ -719,74 +719,77 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
               ),
             ),
             child: SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      margin: const EdgeInsets.only(top: 12, bottom: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(2),
+              child: Material(
+                color: Colors.transparent,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        margin: const EdgeInsets.only(top: 12, bottom: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 8,
-                    ),
-                    child: Text(
-                      entry.filename,
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        entry.filename,
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                  ),
-                  const Divider(color: Colors.white10),
-                  if (!entry.isDirectory)
+                    const Divider(color: Colors.white10),
+                    if (!entry.isDirectory)
+                      ListTile(
+                        leading: const Icon(
+                          Icons.download_rounded,
+                          color: AppConstants.primaryGreen,
+                        ),
+                        title: Text(
+                          'Download to Clipboard',
+                          style: GoogleFonts.inter(),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _downloadEntry(entry);
+                        },
+                      ),
                     ListTile(
                       leading: const Icon(
-                        Icons.download_rounded,
-                        color: AppConstants.primaryGreen,
+                        Icons.edit_rounded,
+                        color: Color(0xFF448AFF),
                       ),
-                      title: Text(
-                        'Download to Clipboard',
-                        style: GoogleFonts.inter(),
-                      ),
+                      title: Text('Rename', style: GoogleFonts.inter()),
                       onTap: () {
                         Navigator.pop(context);
-                        _downloadEntry(entry);
+                        _renameEntry(entry);
                       },
                     ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.edit_rounded,
-                      color: Color(0xFF448AFF),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.delete_outline_rounded,
+                        color: Colors.red,
+                      ),
+                      title: Text('Delete', style: GoogleFonts.inter()),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _deleteEntry(entry);
+                      },
                     ),
-                    title: Text('Rename', style: GoogleFonts.inter()),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _renameEntry(entry);
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.delete_outline_rounded,
-                      color: Colors.red,
-                    ),
-                    title: Text('Delete', style: GoogleFonts.inter()),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _deleteEntry(entry);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                ],
+                    const SizedBox(height: 8),
+                  ],
+                ),
               ),
             ),
           ),

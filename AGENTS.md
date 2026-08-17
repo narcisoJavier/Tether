@@ -96,6 +96,10 @@ Tether/
 - **Tailscale FFI** — Go compiled to shared library via Dart hooks
 - **Command Deck layout** — Quick command ordering, categories, and folder row sizing persist in SharedPreferences
 - **Navigation safety** — Shell screens reserve space for the translucent bottom navigation; modal sheets use the root navigator and safe areas
+- **Adaptive Icon Invariant** — Never rely solely on flat `mipmap-*/ic_launcher.png`. Always configure `res/mipmap-anydpi-v26/ic_launcher.xml` and `ic_launcher_round.xml` using `<adaptive-icon>` with a centered foreground (`ic_launcher_foreground.png`) fitting the 66% safe zone and `@color/ic_launcher_background` set to OLED black `#050B0A`.
+- **Cold Boot Theme Invariant** — In `android/app/src/main/res/values/styles.xml`, `LaunchTheme` must inherit `@android:style/Theme.Black.NoTitleBar` with a dark `#000000` drawable background in `launch_background.xml` to eliminate cold start white screen flashes.
+- **Autonomous Onboarding Invariant** — Onboarding slides must use the Card-First visual hierarchy (floating animated card in upper 55%, bold typography in lower 30%, expanding pill indicators at bottom) with autonomous continuous micro-animations (weightless float, streaming terminal ticker, node rotation, biometric radar, command execution simulator) without requiring user tapping.
+- **Onboarding Route Accessibility Invariant** — Never redirect `/onboarding` back to `/` if onboarding is complete; users and developers must always be able to replay the tour from Settings.
 
 ## COMMANDS
 

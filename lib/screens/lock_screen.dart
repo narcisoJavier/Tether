@@ -128,24 +128,31 @@ class _LockScreenState extends ConsumerState<LockScreen> {
           width: 88,
           height: 88,
           decoration: BoxDecoration(
-            color: AppConstants.primaryGreen.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(24),
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(
-              color: AppConstants.primaryGreen.withValues(alpha: 0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: AppConstants.primaryGreen.withValues(alpha: 0.08),
+                color: AppConstants.primaryGreen.withValues(alpha: 0.15),
                 blurRadius: 24,
-                spreadRadius: 4,
+                spreadRadius: 2,
               ),
             ],
           ),
-          child: const Icon(
-            Icons.terminal_rounded,
-            size: 44,
-            color: AppConstants.primaryGreen,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Image.asset(
+              'assets/logo.png',
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => const Icon(
+                Icons.terminal_rounded,
+                size: 44,
+                color: AppConstants.primaryGreen,
+              ),
+            ),
           ),
         )
         .animate()

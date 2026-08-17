@@ -512,39 +512,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 32,
-              height: 32,
+              width: 22,
+              height: 22,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF414754), width: 1),
+                color: Colors.white.withValues(alpha: 0.03),
+                border: Border.all(color: const Color(0xFF414754), width: 0.8),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.network(
-                  'https://lh3.googleusercontent.com/aida/AP1WRLtEu4mMlERPTkJttawK9cnY8Sv0XGjphjQ85OzgELTJK82qnf3JzzsGV5aQuQEfIvWRIC-Ew0w7Tan4hrU9bmcJbq62cujUekQztYs185-pF8bwat-gKDEg8n2oJc9LWeYbIx0mlA4xlDE3N3Zxnnh4PdDlpe3TXDwnL8TB13-cYVlcR_pexpn4pQowIA164DrCC_kt3szvyEBdSe0lc6zLx-VC87FQ6d9srbu43Xe7kx72HJ79kUs8MNVIEJ-fYj85YD5NMSjShA',
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Image.asset(
-                    'assets/logo.png',
-                    width: 32,
-                    height: 32,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const Icon(
-                      Icons.person_rounded,
-                      size: 18,
-                      color: Color(0xFFC0C6D6),
-                    ),
-                  ),
-                ),
+              child: const Icon(
+                Icons.home_rounded,
+                size: 12,
+                color: Color(0xFFC0C6D6),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             Text(
               'HOME',
               style: GoogleFonts.jetBrainsMono(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
                 color: Colors.white,
-                letterSpacing: 2.0,
+                letterSpacing: 1.5,
               ),
             ),
           ],

@@ -183,107 +183,117 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
               : Colors.white.withValues(alpha: 0.06),
         ),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: typeColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 4,
           ),
-          child: Icon(_typeIcon(tunnel.type), size: 20, color: typeColor),
-        ),
-        title: Text(
-          tunnel.label.isNotEmpty ? tunnel.label : tunnel.displayString,
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.white.withValues(alpha: 0.9),
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: typeColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(_typeIcon(tunnel.type), size: 20, color: typeColor),
           ),
-        ),
-        subtitle: GestureDetector(
-          onTap: () => _toggleAutoStart(tunnel),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  tunnel.displayString,
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.4),
+          title: Text(
+            tunnel.label.isNotEmpty ? tunnel.label : tunnel.displayString,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withValues(alpha: 0.9),
+            ),
+          ),
+          subtitle: GestureDetector(
+            onTap: () => _toggleAutoStart(tunnel),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    tunnel.displayString,
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 12,
+                      color: Colors.white.withValues(alpha: 0.4),
+                    ),
                   ),
                 ),
-              ),
-              Icon(
-                tunnel.enabled ? Icons.autorenew_rounded : Icons.block_rounded,
-                size: 14,
-                color: tunnel.enabled
-                    ? AppConstants.primaryGreen.withValues(alpha: 0.6)
-                    : Colors.white.withValues(alpha: 0.2),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                tunnel.enabled ? 'Auto' : 'Manual',
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
+                Icon(
+                  tunnel.enabled
+                      ? Icons.autorenew_rounded
+                      : Icons.block_rounded,
+                  size: 14,
                   color: tunnel.enabled
                       ? AppConstants.primaryGreen.withValues(alpha: 0.6)
                       : Colors.white.withValues(alpha: 0.2),
                 ),
+                const SizedBox(width: 4),
+                Text(
+                  tunnel.enabled ? 'Auto' : 'Manual',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: tunnel.enabled
+                        ? AppConstants.primaryGreen.withValues(alpha: 0.6)
+                        : Colors.white.withValues(alpha: 0.2),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Status indicator
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Start/stop button
+              if (isStarting)
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else if (isActive)
+                IconButton(
+                  icon: const Icon(Icons.stop_rounded, color: Colors.redAccent),
+                  onPressed: () => _stopTunnel(tunnel.id, sshService),
+                  tooltip: 'Stop',
+                )
+              else
+                IconButton(
+                  icon: const Icon(
+                    Icons.play_arrow_rounded,
+                    color: AppConstants.primaryGreen,
+                  ),
+                  onPressed: sshService.isConnected
+                      ? () => _startTunnel(tunnel, sshService)
+                      : null,
+                  tooltip: sshService.isConnected ? 'Start' : 'Not connected',
+                ),
+              // Delete button
+              IconButton(
+                icon: Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.white.withValues(alpha: 0.3),
+                  size: 20,
+                ),
+                onPressed: () => _deleteTunnel(tunnel.id),
+                tooltip: 'Delete',
               ),
             ],
           ),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Status indicator
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: statusColor,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Start/stop button
-            if (isStarting)
-              const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            else if (isActive)
-              IconButton(
-                icon: const Icon(Icons.stop_rounded, color: Colors.redAccent),
-                onPressed: () => _stopTunnel(tunnel.id, sshService),
-                tooltip: 'Stop',
-              )
-            else
-              IconButton(
-                icon: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: AppConstants.primaryGreen,
-                ),
-                onPressed: sshService.isConnected
-                    ? () => _startTunnel(tunnel, sshService)
-                    : null,
-                tooltip: sshService.isConnected ? 'Start' : 'Not connected',
-              ),
-            // Delete button
-            IconButton(
-              icon: Icon(
-                Icons.delete_outline_rounded,
-                color: Colors.white.withValues(alpha: 0.3),
-                size: 20,
-              ),
-              onPressed: () => _deleteTunnel(tunnel.id),
-              tooltip: 'Delete',
-            ),
-          ],
         ),
       ),
     );

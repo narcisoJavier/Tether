@@ -18,9 +18,6 @@ import 'screens/tunnel_screen.dart';
 import 'screens/welcome_back_screen.dart';
 import 'widgets/glass_bottom_nav_bar.dart';
 
-/// Top-level navigator key.
-final _rootNavigatorKey = GlobalKey<NavigatorState>();
-
 /// Custom page transition — slide from right with fade.
 CustomTransitionPage<void> _buildTransitionPage({
   required Widget child,
@@ -68,7 +65,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshListenable = _AuthRefreshListenable(ref);
 
   return GoRouter(
-    navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
     refreshListenable: refreshListenable,
     redirect: (context, state) {
@@ -81,12 +77,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isWelcomeRoute = state.matchedLocation == '/welcome';
       final isLockRoute = state.matchedLocation == '/lock';
 
-      // First-time onboarding
+      // First-time onboarding redirect
       if (!isComplete && !isOnboardingRoute) {
         return '/onboarding';
-      }
-      if (isComplete && isOnboardingRoute) {
-        return '/';
       }
 
       // Biometric lock gate (route-based instead of widget-level)
@@ -136,12 +129,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // ── Shell: persistent glass bottom navigation bar across 5 branches ──
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
+          final isTerminal = navigationShell.currentIndex == 1;
           return Scaffold(
             body: navigationShell,
-            extendBody: true,
-            bottomNavigationBar: GlassBottomNavBar(
-              navigationShell: navigationShell,
-            ),
+            extendBody: !isTerminal,
+            bottomNavigationBar: isTerminal
+                ? null
+                : GlassBottomNavBar(
+                    navigationShell: navigationShell,
+                  ),
           );
         },
         branches: [
