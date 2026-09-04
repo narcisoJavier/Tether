@@ -65,10 +65,12 @@ Thumbs.db
 nul
 
 *.apk
+release/
 
+# Agent tools and local session state
 .omo/
-"'"
-
-# Agent skills (third-party, install locally)
-.agents/skills/
+.opencode/
+.swarm/
+.codegraph/
+.agents/
 Marketing/

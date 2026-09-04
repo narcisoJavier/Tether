@@ -130,4 +130,4 @@ flutter clean && flutter pub get   # Full clean rebuild
 
 ## ACTIVE DEVELOPMENT
 
-> **⚠️ BEFORE STARTING ANY WORK**: Read `.agents/PROGRESS.md` for the current implementation state. This project has an active multi-session development effort (Tether v0.5) that may span multiple agent sessions/accounts. The progress file tracks what's done, what's in progress, and what's next. Always check it first to avoid redoing completed work.
+> **⚠️ BEFORE STARTING ANY WORK**: Read `docs/PROGRESS.md` for the current implementation state. This project has an active multi-session development effort (Tether v0.6) that may span multiple agent sessions/accounts. The progress file tracks what's done, what's in progress, and what's next. Always check it first to avoid redoing completed work.

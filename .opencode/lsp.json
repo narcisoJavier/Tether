@@ -1,9 +1,0 @@
-﻿{
-  "servers": {
-    "dart": {
-      "command": ["dart", "language-server", "--protocol=lsp"],
-      "rootPatterns": ["pubspec.yaml"],
-      "fileTypes": ["dart"]
-    }
-  }
-}
