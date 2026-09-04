@@ -1,7 +1,7 @@
-# Tether v0.5 — Pocket SSH & Mesh Terminal (Apple TUI 2.0)
+# Tether v0.6.1 — Pocket SSH & Mesh Terminal (Apple TUI 2.0)
 
-> **LAST UPDATED**: 2026-08-12T00:00:00Z
-> **STATUS**: Tether rename and Apple TUI 2.0 redesign are active. Runtime defect fixes are applied and `flutter build apk --debug` succeeds. Host-side analyzer/tests remain limited because the Windows Tailscale asset path requires a native C compiler (`gcc`).
+> **LAST UPDATED**: 2026-09-04T06:35:00Z
+> **STATUS**: Production release v0.6.1 published with cyber ASCII boot sequence, Android Option 3 adaptive icons, settings cockpit, streamlined codebase, and updated documentation. Static analysis clean, all 98 tests passing.
 
 ## ✅ Completed Accomplishments
 
