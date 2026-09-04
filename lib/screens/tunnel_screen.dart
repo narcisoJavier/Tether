@@ -436,14 +436,15 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) => Padding(
-          padding: EdgeInsets.fromLTRB(
-            24,
-            24,
-            24,
-            MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          child: Column(
+        builder: (context, setSheetState) => SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              24,
+              24,
+              24,
+              MediaQuery.of(context).viewInsets.bottom + 24,
+            ),
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -562,7 +563,8 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
           ),
         ),
       ),
-    ).whenComplete(() {
+    ),
+  ).whenComplete(() {
       labelCtrl.dispose();
       localPortCtrl.dispose();
       remoteHostCtrl.dispose();

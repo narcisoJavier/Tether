@@ -385,9 +385,65 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     setState(() => _activeTabIndex = index);
   }
 
-  void _closeTab(String tabId) {
+  Future<void> _closeTab(String tabId, {bool skipConfirm = false}) async {
     final tab = _tabs[tabId];
     if (tab == null) return;
+
+    if (!skipConfirm && tab.isConnected) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppConstants.surfaceDark,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: Colors.white.withValues(alpha: 0.1),
+              width: 0.8,
+            ),
+          ),
+          title: Text(
+            'Close Session',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+              color: Colors.white,
+            ),
+          ),
+          content: Text(
+            'Disconnect from ${tab.label}? Any active process or terminal session will be terminated.',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: Colors.white.withValues(alpha: 0.7),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(
+                  color: Colors.white.withValues(alpha: 0.6),
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFFFF453A),
+              ),
+              child: Text(
+                'Disconnect',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return;
+    }
+
+    if (!mounted || !_tabs.containsKey(tabId)) return;
 
     // Cancel SSH session.
     tab.stdoutSub?.cancel();
@@ -1370,15 +1426,15 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
               autofocus: true,
               backgroundOpacity: 1.0,
               textStyle: TerminalStyle(
-                fontFamily: 'JetBrainsMono',
+                fontFamily: ref.watch(terminalFontFamilyProvider),
                 fontSize: tab.fontSize,
               ),
-              cursorType: TerminalCursorType.block,
+              cursorType: ref.watch(terminalCursorTypeProvider),
               padding: EdgeInsets.symmetric(
                 horizontal: 8,
                 vertical: isLandscape ? 4 : 8,
               ),
-              theme: _terminalTheme,
+              theme: ref.watch(terminalThemeProvider).theme,
             ),
           ),
         ),
@@ -1766,34 +1822,6 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
       ),
     );
   }
-
-  // ── Terminal theme ─────────────────────────────────────────────────────
-
-  static const TerminalTheme _terminalTheme = TerminalTheme(
-    cursor: AppConstants.primaryGreen,
-    selection: Color(0x7F00E676),
-    foreground: Colors.white,
-    background: AppConstants.backgroundDark,
-    black: Color(0xFF000000),
-    red: Color(0xFFFF5252),
-    green: AppConstants.primaryGreen,
-    yellow: Color(0xFFFFAB40),
-    blue: Color(0xFF448AFF),
-    magenta: Color(0xFFE040FB),
-    cyan: Color(0xFF18FFFF),
-    white: Color(0xFFFFFFFF),
-    brightBlack: Color(0xFF546E7A),
-    brightRed: Color(0xFFFF8A80),
-    brightGreen: Color(0xFF69F0AE),
-    brightYellow: Color(0xFFFFD740),
-    brightBlue: Color(0xFF82B1FF),
-    brightMagenta: Color(0xFFFF80AB),
-    brightCyan: Color(0xFF84FFFF),
-    brightWhite: Color(0xFFFFFFFF),
-    searchHitBackground: Color(0x7FFFFFFF),
-    searchHitBackgroundCurrent: Color(0x7F00E676),
-    searchHitForeground: Color(0xFF000000),
-  );
 }
 
 // ── Helper widgets ────────────────────────────────────────────────────────────
@@ -1805,7 +1833,7 @@ class _KeyDef {
   final Color? color;
 }
 
-class _SpecialKeyButton extends StatelessWidget {
+class _SpecialKeyButton extends ConsumerWidget {
   const _SpecialKeyButton({
     required this.label,
     required this.onPressed,
@@ -1817,7 +1845,7 @@ class _SpecialKeyButton extends StatelessWidget {
   final Color? color;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final effectiveColor = color ?? Colors.white.withValues(alpha: 0.75);
 
     return Material(
@@ -1825,7 +1853,9 @@ class _SpecialKeyButton extends StatelessWidget {
       borderRadius: BorderRadius.circular(7),
       child: InkWell(
         onTap: () {
-          HapticFeedback.selectionClick();
+          if (ref.read(terminalHapticFeedbackProvider)) {
+            HapticFeedback.selectionClick();
+          }
           onPressed();
         },
         borderRadius: BorderRadius.circular(7),

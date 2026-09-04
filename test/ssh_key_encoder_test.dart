@@ -86,12 +86,12 @@ void main() {
           .join();
       final outer = base64.decode(b64Body);
 
-      // Must start with "openssh-key-v1\0" (15 chars + null)
-      final magic = utf8.decode(outer.sublist(0, 15));
+      // Must start with "openssh-key-v1\0" (14 chars + null = 15 bytes)
+      final magic = utf8.decode(outer.sublist(0, 14));
       expect(magic, 'openssh-key-v1');
-      expect(outer[15], 0); // null terminator
+      expect(outer[14], 0); // null terminator
 
-      var offset = 16;
+      var offset = 15;
       final cipherLen = _readUint32(outer, offset);
       offset += 4;
       final cipher = utf8.decode(outer.sublist(offset, offset + cipherLen));
@@ -142,7 +142,7 @@ void main() {
           .where((l) => !l.startsWith('-----'))
           .join();
       final outer = base64.decode(b64Body);
-      var o = 16;
+      var o = 15;
       o += 4 + 4; // cipher string len + "none"
       o += 4 + 4; // kdf string len + "none"
       o += 4; // kdf options empty

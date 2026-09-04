@@ -604,7 +604,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         },
         color: const Color(0xFF00CCFF),
         child: ListView(
-          padding: const EdgeInsets.only(top: 12, bottom: 100),
+          padding: EdgeInsets.only(
+            top: 12,
+            bottom: 88 + MediaQuery.paddingOf(context).bottom,
+          ),
           children: [
             // ── Swipeable Hero Node Cards Carousel ──
             Column(
@@ -730,7 +733,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ),
       ),
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 92, right: 8),
+        padding: EdgeInsets.only(
+          bottom: 76 + MediaQuery.paddingOf(context).bottom,
+          right: 8,
+        ),
         child: Container(
           width: 56,
           height: 56,

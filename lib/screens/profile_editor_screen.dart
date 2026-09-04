@@ -46,14 +46,6 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   bool get _isEditing => widget.profileId != null;
   ConnectionProfile? _existingProfile;
 
-  // Swatch colors matching the HTML spec
-  static const List<Color> _accentColors = [
-    Color(0xFFFF453A), // Coral Red
-    Color(0xFFFFD60A), // Yellow
-    Color(0xFF32D74B), // Green
-    Color(0xFF00CCFF), // Cyan
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -468,8 +460,8 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
                         const SizedBox(height: 14),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: List.generate(_accentColors.length, (idx) {
-                            final c = _accentColors[idx];
+                          children: List.generate(ProfileColors.palette.length, (idx) {
+                            final c = ProfileColors.palette[idx];
                             final isSel = _colorIndex == idx;
                             return GestureDetector(
                               onTap: () => setState(() => _colorIndex = idx),
@@ -910,6 +902,8 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       connectionMethod: _connectionMethod,
       environment: _environment,
       createdAt: _existingProfile?.createdAt,
+      lastConnectionSuccess: _existingProfile?.lastConnectionSuccess ?? false,
+      tunnels: _existingProfile?.tunnels,
     );
   }
 

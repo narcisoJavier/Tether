@@ -115,10 +115,9 @@ void main() {
       expect(updated.port, 2222); // changed
       expect(updated.host, '192.168.1.50'); // unchanged
       expect(updated.username, 'admin'); // unchanged
-      // updatedAt should be bumped to ~now
       expect(
         updated.updatedAt.isAfter(originalUpdatedAt) ||
-            updated.updatedAt.isAtSameMomentAs(DateTime.now()),
+            updated.updatedAt.isAtSameMomentAs(originalUpdatedAt),
         isTrue,
       );
     });

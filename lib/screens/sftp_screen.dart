@@ -140,10 +140,12 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
     }
   }
 
+  String _joinPath(String name) {
+    return _currentPath == '/' ? '/$name' : '$_currentPath/$name';
+  }
+
   void _navigateToDir(String dirName) {
-    final newPath = _currentPath == '/'
-        ? '/$dirName'
-        : '$_currentPath/$dirName';
+    final newPath = _joinPath(dirName);
     _pathStack.add(newPath);
     _listDirectory();
   }
@@ -193,7 +195,7 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
     );
     if (name != null && name.isNotEmpty) {
       try {
-        await _sftpService.createDirectory('$_currentPath/$name');
+        await _sftpService.createDirectory(_joinPath(name));
         await _listDirectory();
       } catch (e) {
         if (mounted) _showError('Failed to create directory: $e');
@@ -234,9 +236,9 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
     if (confirm == true) {
       try {
         if (entry.isDirectory) {
-          await _sftpService.deleteDirectory('$_currentPath/${entry.filename}');
+          await _sftpService.deleteDirectory(_joinPath(entry.filename));
         } else {
-          await _sftpService.deleteFile('$_currentPath/${entry.filename}');
+          await _sftpService.deleteFile(_joinPath(entry.filename));
         }
         await _listDirectory();
       } catch (e) {
@@ -282,8 +284,8 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
     if (newName != null && newName.isNotEmpty && newName != entry.filename) {
       try {
         await _sftpService.rename(
-          '$_currentPath/${entry.filename}',
-          '$_currentPath/$newName',
+          _joinPath(entry.filename),
+          _joinPath(newName),
         );
         await _listDirectory();
       } catch (e) {
@@ -294,8 +296,16 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
 
   Future<void> _downloadEntry(SftpEntry entry) async {
     try {
+      if (entry.size > 512 * 1024) {
+        if (mounted) {
+          _showError(
+            'File exceeds 512KB clipboard preview limit (${_formatSize(entry.size)}).',
+          );
+        }
+        return;
+      }
       final bytes = await _sftpService.readFile(
-        '$_currentPath/${entry.filename}',
+        _joinPath(entry.filename),
       );
       final text = utf8.decode(bytes, allowMalformed: true);
       await Clipboard.setData(ClipboardData(text: text));
@@ -368,7 +378,7 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
     if (filename != null && filename.isNotEmpty) {
       try {
         await _sftpService.writeFile(
-          '$_currentPath/$filename',
+          _joinPath(filename),
           Uint8List.fromList(utf8.encode(content)),
         );
         await _listDirectory();
@@ -724,17 +734,6 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Center(
-                      child: Container(
-                        width: 36,
-                        height: 4,
-                        margin: const EdgeInsets.only(top: 12, bottom: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,

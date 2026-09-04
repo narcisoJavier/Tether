@@ -23,7 +23,6 @@ import '../services/terminal_tab_request_provider.dart';
 import '../utils/agent_presets.dart';
 import '../utils/constants.dart';
 import '../widgets/agent_brand_mark.dart';
-import '../widgets/connection_card.dart';
 
 /// Screen for managing and executing quick commands.
 class QuickCommandsScreen extends ConsumerStatefulWidget {
@@ -1723,18 +1722,6 @@ class _QuickCommandsScreenState extends ConsumerState<QuickCommandsScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Drag handle
-                    Center(
-                      child: Container(
-                        width: 36,
-                        height: 4,
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
                     Text(
                       command != null ? 'Edit Command' : 'New Quick Command',
                       style: GoogleFonts.inter(

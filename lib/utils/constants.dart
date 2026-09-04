@@ -103,3 +103,20 @@ class AppConstants {
   static const Color surfaceDark = surface1;
   static const Color backgroundDark = bgBase;
 }
+
+class ProfileColors {
+  ProfileColors._();
+
+  static const List<Color> palette = [
+    Color(0xFF0A84FF),
+    Color(0xFFFF9F0A),
+    Color(0xFFFF453A),
+    Color(0xFF30D158),
+    Color(0xFFBF5AF2),
+    Color(0xFFFFD60A),
+    Color(0xFF5E5CE6),
+    Color(0xFF64D2FF),
+  ];
+
+  static Color get(int index) => palette[index % palette.length];
+}

@@ -27,7 +27,7 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
   Widget build(BuildContext context) {
     final keys = ref.watch(keyServiceProvider).listKeys();
 
-    final bottomInset = 128 + MediaQuery.paddingOf(context).bottom;
+    final bottomInset = 88 + MediaQuery.paddingOf(context).bottom;
 
     return GradientScaffold(
       appBar: GlassAppBar(
@@ -442,15 +442,6 @@ class _KeyManagementScreenState extends ConsumerState<KeyManagementScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: 36,
-                        height: 4,
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
                       ListTile(
                         leading: Container(
                           width: 36,

@@ -6,7 +6,6 @@ import 'package:uuid/uuid.dart';
 import '../models/quick_command.dart';
 import '../services/profile_storage_service.dart';
 import '../utils/constants.dart';
-import '../widgets/connection_card.dart';
 import '../widgets/gradient_scaffold.dart';
 
 /// Screen for creating, editing, and deleting custom presets.

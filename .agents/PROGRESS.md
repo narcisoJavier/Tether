@@ -69,11 +69,64 @@
 - **Interactive In-Terminal Quick Command Deck**: Fully redesigned `_QuickCommandPickerSheet` with real-time fuzzy search, filter chips (`ALL`, `SAVED`, `SYSTEM`, `DEV TOOLS`, `AI AGENTS`), dual execution actions (`RUN >_` with instant carriage-return piped directly to SSH stdin, and `PASTE 📋` to edit arguments), and deep-link shortcut to Command Deck manager.
 - **Clean Single Drag Handles**: Eliminated duplicate stacked drag bars across bottom modal sheets by relying on Flutter's native Material3 `BottomSheetThemeData.showDragHandle`.
 
+### 8. Comprehensive Deep Audit & Defect Eradication
+- **OpenSSH Wire Magic Header Protocol Fix** ([`lib/utils/ssh_key_encoder.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/utils/ssh_key_encoder.dart)): Replaced corrupted `'openssh-key-v10'` string with the exact null-terminated 15-byte OpenSSH specification (`'openssh-key-v1\0'`). Updated test offsets in [`test/ssh_key_encoder_test.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/test/ssh_key_encoder_test.dart) to guarantee cryptographic keypair integrity.
+- **Profile Tunnel & Flag Preservation** ([`lib/screens/profile_editor_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/profile_editor_screen.dart)): Editing connection profiles now preserves configured tunnels and `lastConnectionSuccess` status instead of overwriting them with empty lists and false flags.
+- **SFTP Root Path Formatting** ([`lib/screens/sftp_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/sftp_screen.dart)): Resolved double-slash path concatenation (`//folder`) at root directories across navigation, directory creation, file deletion, renaming, and uploading.
+- **SFTP Clipboard OOM Protection** ([`lib/screens/sftp_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/sftp_screen.dart)): Enforced a 512KB safe ceiling on file content copying to protect mobile clipboard memory and eliminate UI freezing.
+- **Duplicate Drag Handle Elimination** ([`lib/screens/key_management_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/key_management_screen.dart), [`lib/screens/quick_commands_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/quick_commands_screen.dart), [`lib/screens/sftp_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/sftp_screen.dart)): Removed redundant manual drag bars from modal bottom sheets, relying cleanly on Material3 native handles.
+- **Tunnel Sheet Keyboard Scroll Safety** ([`lib/screens/tunnel_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/tunnel_screen.dart)): Wrapped the New Tunnel modal sheet in `SingleChildScrollView` to prevent keyboard push-up RenderFlex overflows.
+- **Connection Tile Dynamic Font Scaling** ([`lib/widgets/connection_tile.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/widgets/connection_tile.dart)): Replaced fixed `SizedBox(height: 172)` with `ConstrainedBox(constraints: BoxConstraints(minHeight: 168))` to prevent overflow under large text scaling.
+- **Dynamic Home FAB & Content Inset** ([`lib/screens/home_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/home_screen.dart)): Calculated FAB bottom position (`76 + padding`) and ListView padding (`88 + padding`) dynamically to guarantee uniform clearance above system gesture bars and glass navigation across all device viewports.
+- **Excessive Bottom Spacing Reduction** ([`lib/screens/settings_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/settings_screen.dart), [`lib/screens/key_management_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/key_management_screen.dart)): Reduced excessive `128 + padding` insets down to `88 + padding`, eliminating huge blank voids at screen bottoms.
+- **Interactive Session Termination Guard** ([`lib/screens/tabbed_terminal_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/tabbed_terminal_screen.dart)): Added an explicit confirmation dialog before closing active connected SSH sessions to prevent accidental disconnection.
+
+### 9. Settings Tab Overhaul (Apple TUI 2.0 Inset Grouped Hub & Terminal Cockpit)
+- **Reusable Inset Grouped UI System** ([`lib/widgets/settings_group.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/widgets/settings_group.dart)): Implemented standard mobile inset grouped sections (`SettingsGroup`, `SettingsTile`, `SettingsValuePill`) with rounded 16px glass cards, hairline borders, and indented 0.5px dividers.
+- **Mesh Node & System Identity Header** ([`lib/screens/settings_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/settings_screen.dart)): Added top enclave status card with active Tailnet status and live database metric chips for profiles, SSH keys, and quick commands.
+- **Interactive Live Terminal Preview** ([`lib/screens/settings_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/settings_screen.dart)): Embedded a simulated VT100 mini terminal frame with macOS window dots, live shell output, and pulsing cursor that reacts synchronously to appearance changes.
+- **Terminal Theme Engine** ([`lib/utils/terminal_themes.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/utils/terminal_themes.dart)): Built 6 curated ANSI color themes: OLED Emerald, Tokyo Night, Cyberpunk Neon, Monokai Pro, Classic Amber, and Solarized Dark.
+- **Deep Terminal Personalization** ([`lib/utils/terminal_settings_provider.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/utils/terminal_settings_provider.dart)): Added persisted providers for color themes, monospace fonts (JetBrains Mono, Fira Code, Space Mono, Courier), cursor styles (Block, Bar, Underline), cursor blink, and keyboard ribbon haptic feedback.
+- **Terminal Screen Synchronization** ([`lib/screens/tabbed_terminal_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/tabbed_terminal_screen.dart)): Bound `TerminalView` directly to dynamic theme, font, cursor, and haptic providers.
+- **Unit Test Coverage** ([`test/terminal_themes_test.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/test/terminal_themes_test.dart)): Added tests verifying preset retrieval, fallbacks, and palette integrity.
+
+### 10. Cyber Boot-Up Animation & ASCII Serpent Splash System
+- **Pixel-Accurate Vector Extraction** ([`lib/screens/cyber_logo_data.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/cyber_logo_data.dart)): Extracted normalized vector paths directly from the reference logo art with RDP simplification, categorizing into `terminalBoxStrokes`, `promptStrokes`, `cursorStrokes`, `snakeBodyStrokes`, `snakeHeadStrokes`, and `snakeTongueStrokes`.
+- **4-Phase Choreography Painter** ([`lib/screens/cyber_splash_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/cyber_splash_screen.dart)):
+  - Phase 1 (0.0s – 1.0s): Squircle scale pop & fade, terminal window dashes draw, prompt `>` reveals, and cursor `_` blinks every 250ms.
+  - Phase 2 (0.8s – 2.2s): Snake body & chain links trace sequentially from the curled tail (bottom-left) around the terminal box, driven by a traveling highlight energy pulse.
+  - Phase 3 (2.0s – 2.8s): Head snaps into focus with white bloom surge; forked tongue extends with 2-3 cycle rapid flicking oscillation.
+  - Phase 4 (2.8s – 3.5s): Settle breathing pulse on squircle container, cursor blinks, and `onBootComplete` callback fires.
+- **Strict Constraints**: 100% vector rendering on `Canvas`, strict containment within squircle frame, tap-to-skip support, and strictly zero comments in source code.
+- **Unit & Widget Test Suite** ([`test/cyber_splash_screen_test.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/test/cyber_splash_screen_test.dart)): Added 4 unit/widget tests verifying geometry integrity, rendering, tap-to-skip, and 3500ms completion (total 98/98 tests passing).
+
+### 11. Android True Adaptive Icon & Material You Theming System (Option 3)
+- **Eliminated Double Squircle Border**: Removed the embedded squircle container from `ic_launcher_foreground.png`. The foreground now contains *only* the pure white transparent ASCII chained serpent & terminal box (`> _`) scaled to the official 66% safe zone ($72\text{dp}$).
+- **Edge-to-Edge OLED Background**: Configured `@color/ic_launcher_background` (`#050B0A`) across `mipmap-anydpi-v26/ic_launcher.xml` and `ic_launcher_round.xml`. Android launchers cleanly apply circle (Pixel), squircle (Samsung), or rounded square masks without clipping or nested container borders.
+- **Android 13+ Material You Themed Icons**: Added `<monochrome android:drawable="@mipmap/ic_launcher_foreground" />` to both adaptive icon XMLs, automatically adapting the icon to the user's wallpaper dynamic palette when "Themed icons" is enabled.
+- **High-DPI Density Buckets Generated**: Generated crisp anti-aliased foregrounds and legacy fallbacks across `mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, and `xxxhdpi`.
+- **Live Emulator Verification**: Verified on connected Pixel emulator (`emulator-5554`) with debug build and live screenshot capture.
+
+### 12. Codebase Streamlining, Redundancy Elimination & Dependency Optimization
+- **`ProfileColors` Consolidation** ([`lib/utils/constants.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/utils/constants.dart)): Unified duplicated `ProfileColors` class previously declared in multiple files into canonical app constants.
+- **Color Palette Consistency** ([`lib/screens/profile_editor_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/profile_editor_screen.dart)): Replaced hardcoded local 4-color subset `_accentColors` with the global 8-color `ProfileColors.palette` for full cross-screen visual consistency.
+- **Dead Code Eradication**:
+  - Deleted obsolete `lib/widgets/connection_card.dart` (223 lines of dead widget code superseded by `ConnectionTile`).
+  - Deleted unreferenced empty `lib/utils/theme_provider.dart` (1-byte file).
+  - Cleaned unneeded imports in [`lib/screens/preset_editor_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/preset_editor_screen.dart) and [`lib/screens/quick_commands_screen.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/screens/quick_commands_screen.dart).
+- **Dependency & Asset Purge** ([`pubspec.yaml`](file:///D:/A-PC%20FILES/Desktop/OPA/pubspec.yaml)):
+  - Removed unused `hive_generator` and `build_runner` dev dependencies (adapters are hand-written in `hive_adapters.dart`), purging 33 unnecessary transitive analyzer/codegen packages from the project tree.
+  - Removed `- assets/opa_logo/` from the Flutter asset bundle to stop packaging non-asset Python scripts (`generate_logo_assets.py`), Markdown briefs, and obsolete logos into release APKs.
+- **Version Constant Alignment** ([`lib/utils/app_version.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/lib/utils/app_version.dart)): Updated `_fallbackVersion` from `'0.5.0+3'` to `'0.6.0+4'` matching `pubspec.yaml`.
+- **Root Artifact Cleanup**: Removed corrupted Windows redirect file `nul`, stale `package.json`, and the 142MB `OPA_v0.4.apk` binary from workspace root.
+- **Flaky Timestamp Test Hardening** ([`test/models_test.dart`](file:///D:/A-PC%20FILES/Desktop/OPA/test/models_test.dart)): Hardened millisecond race condition assertion on `updatedAt` to prevent same-millisecond execution flakes.
+- **Strict Zero-Comment Policy**: All modified Dart files strictly adhere to zero added comments.
+
 ---
 
 ## 🧪 Verification Status
 
-- ✅ `dart analyze lib/` — **No issues found! (0 errors, 0 warnings, 0 lints)**
-- ✅ App icons & splash themes verified.
-- ✅ Android build system configured.
-
+- ✅ `dart analyze lib/ test/` — **No issues found! (0 errors, 0 warnings, 0 lints)**
+- ✅ `flutter test` — **98/98 tests passed cleanly**
+- ✅ `flutter build apk --debug` — **Built in 16.7s**
+- ✅ Android adaptive icons & Material You Themed Icons verified live on device launcher
