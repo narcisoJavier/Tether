@@ -6,7 +6,7 @@
 
 **Pocket SSH & Embedded Tailscale Mesh Terminal for Android**
 
-[![Release](https://img.shields.io/badge/Release-v0.6.0%2B4-0A84FF?style=flat-square&logo=github&logoColor=white)](https://github.com/narcisoJavier/Tether/releases)
+[![Release](https://img.shields.io/badge/Release-v0.6.1-0A84FF?style=flat-square&logo=github&logoColor=white)](https://github.com/narcisoJavier/Tether/releases)
 [![Platform](https://img.shields.io/badge/Platform-Android_7.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](https://github.com/narcisoJavier/Tether)
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=flat-square&logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?style=flat-square&logo=dart&logoColor=white)](https://dart.dev)
@@ -123,7 +123,7 @@ Download the latest production APK directly from the [Releases](https://github.c
 adb devices
 
 # Install release APK
-adb install -r Tether-v0.6.0.apk
+adb install -r Tether-v0.6.1.apk
 ```
 
 ### System Requirements
