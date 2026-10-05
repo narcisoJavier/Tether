@@ -4,9 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/connection_profile.dart';
+import '../models/terminal_tab.dart';
 import '../models/tunnel_config.dart';
 import '../services/profile_storage_service.dart';
 import '../services/ssh_service.dart';
+import '../services/tab_manager.dart';
 import '../utils/constants.dart';
 
 /// Screen for managing SSH port-forwarding tunnels on a connection profile.
@@ -25,7 +27,8 @@ class TunnelScreen extends ConsumerStatefulWidget {
 
 class _TunnelScreenState extends ConsumerState<TunnelScreen> {
   ConnectionProfile? _profile;
-  final Map<String, bool> _startingTunnels = {};
+  String? _selectedSessionId;
+  final Set<(String, String)> _startingTunnels = {};
 
   @override
   void initState() {
@@ -34,6 +37,7 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
   }
 
   void _loadProfile() {
+    if (!mounted) return;
     final storage = ref.read(profileStorageProvider);
     setState(() {
       _profile = storage.getProfile(widget.profileId);
@@ -46,8 +50,17 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final sshService = ref.watch(sshServiceProvider(widget.profileId));
-    final activeTunnels = sshService.activeTunnels;
+    final connectedTabs = ref
+        .watch(tabManagerProvider)
+        .where((tab) => tab.profileId == widget.profileId && tab.isConnected)
+        .toList();
+    final selectedTab = connectedTabs
+        .where((tab) => tab.sessionId == _selectedSessionId)
+        .firstOrNull;
+    final sshService = selectedTab == null
+        ? null
+        : ref.watch(sshServiceProvider(selectedTab.sessionId));
+    final activeTunnels = sshService?.activeTunnels ?? <String, ActiveTunnel>{};
 
     return Scaffold(
       backgroundColor: AppConstants.backgroundDark,
@@ -74,20 +87,29 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
           ],
         ),
         actions: [
-          if (activeTunnels.isNotEmpty)
+          if (selectedTab != null &&
+              sshService != null &&
+              activeTunnels.isNotEmpty)
             IconButton(
               icon: const Icon(
                 Icons.stop_circle_outlined,
                 color: Colors.redAccent,
               ),
-              tooltip: 'Stop All',
-              onPressed: () => _stopAllTunnels(sshService),
+              tooltip: 'Stop all in selected session',
+              onPressed: () => _stopAllTunnels(selectedTab, sshService),
             ),
         ],
       ),
-      body: _profile!.tunnels.isEmpty
-          ? _buildEmptyState()
-          : _buildTunnelList(activeTunnels, sshService),
+      body: Column(
+        children: [
+          _buildSessionSelector(connectedTabs, selectedTab),
+          Expanded(
+            child: _profile!.tunnels.isEmpty
+                ? _buildEmptyState()
+                : _buildTunnelList(activeTunnels, selectedTab, sshService),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddTunnelSheet,
         icon: const Icon(Icons.add_rounded),
@@ -97,6 +119,63 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
         ),
         backgroundColor: AppConstants.primaryGreen,
         foregroundColor: Colors.black,
+      ),
+    );
+  }
+
+  Widget _buildSessionSelector(
+    List<TerminalTab> connectedTabs,
+    TerminalTab? selectedTab,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InputDecorator(
+            decoration: const InputDecoration(labelText: 'Terminal session'),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: selectedTab?.sessionId,
+                isExpanded: true,
+                isDense: true,
+                hint: Text(
+                  connectedTabs.isEmpty
+                      ? 'No connected sessions'
+                      : 'Choose a connected session',
+                ),
+                items: connectedTabs
+                    .map(
+                      (tab) => DropdownMenuItem(
+                        value: tab.sessionId,
+                        child: Tooltip(
+                          message: '${tab.label} (${tab.tabId})',
+                          child: Text(
+                            '${tab.label} (${tab.tabId})',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: connectedTabs.isEmpty
+                    ? null
+                    : (sessionId) =>
+                          setState(() => _selectedSessionId = sessionId),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            connectedTabs.isEmpty
+                ? 'Connect a terminal session for this profile to manage running tunnels.'
+                : 'Tunnel controls apply to the selected terminal session.',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: Colors.white.withValues(alpha: 0.5),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -146,7 +225,8 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
 
   Widget _buildTunnelList(
     Map<String, ActiveTunnel> activeTunnels,
-    SshService sshService,
+    TerminalTab? selectedTab,
+    SshService? sshService,
   ) {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
@@ -155,9 +235,18 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
       itemBuilder: (context, index) {
         final tunnel = _profile!.tunnels[index];
         final isActive = activeTunnels.containsKey(tunnel.id);
-        final isStarting = _startingTunnels[tunnel.id] ?? false;
+        final isStarting = _startingTunnels.contains((
+          selectedTab?.sessionId,
+          tunnel.id,
+        ));
 
-        return _buildTunnelCard(tunnel, isActive, isStarting, sshService);
+        return _buildTunnelCard(
+          tunnel,
+          isActive,
+          isStarting,
+          selectedTab,
+          sshService,
+        );
       },
     );
   }
@@ -166,7 +255,8 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
     TunnelConfig tunnel,
     bool isActive,
     bool isStarting,
-    SshService sshService,
+    TerminalTab? selectedTab,
+    SshService? sshService,
   ) {
     final statusColor = isActive
         ? AppConstants.primaryGreen
@@ -265,10 +355,11 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
                   height: 24,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              else if (isActive)
+              else if (isActive && selectedTab != null && sshService != null)
                 IconButton(
                   icon: const Icon(Icons.stop_rounded, color: Colors.redAccent),
-                  onPressed: () => _stopTunnel(tunnel.id, sshService),
+                  onPressed: () =>
+                      _stopTunnel(tunnel.id, selectedTab, sshService),
                   tooltip: 'Stop',
                 )
               else
@@ -277,10 +368,15 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
                     Icons.play_arrow_rounded,
                     color: AppConstants.primaryGreen,
                   ),
-                  onPressed: sshService.isConnected
-                      ? () => _startTunnel(tunnel, sshService)
+                  onPressed:
+                      selectedTab != null &&
+                          sshService != null &&
+                          sshService.isConnected
+                      ? () => _startTunnel(tunnel, selectedTab, sshService)
                       : null,
-                  tooltip: sshService.isConnected ? 'Start' : 'Not connected',
+                  tooltip: sshService?.isConnected == true
+                      ? 'Start in selected session'
+                      : 'Select a connected session',
                 ),
               // Delete button
               IconButton(
@@ -289,7 +385,9 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
                   color: Colors.white.withValues(alpha: 0.3),
                   size: 20,
                 ),
-                onPressed: () => _deleteTunnel(tunnel.id),
+                onPressed: isStarting
+                    ? null
+                    : () => _deleteTunnel(tunnel.id, selectedTab),
                 tooltip: 'Delete',
               ),
             ],
@@ -321,8 +419,27 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
     }
   }
 
-  Future<void> _startTunnel(TunnelConfig tunnel, SshService sshService) async {
-    setState(() => _startingTunnels[tunnel.id] = true);
+  bool _isSessionConnected(String sessionId) {
+    return mounted &&
+        ref
+            .read(tabManagerProvider)
+            .any(
+              (tab) =>
+                  tab.sessionId == sessionId &&
+                  tab.profileId == widget.profileId &&
+                  tab.isConnected,
+            );
+  }
+
+  Future<void> _startTunnel(
+    TunnelConfig tunnel,
+    TerminalTab selectedTab,
+    SshService sshService,
+  ) async {
+    if (!_isSessionConnected(selectedTab.sessionId)) return;
+    final operation = (selectedTab.sessionId, tunnel.id);
+    if (_startingTunnels.contains(operation)) return;
+    setState(() => _startingTunnels.add(operation));
 
     try {
       switch (tunnel.type) {
@@ -357,16 +474,25 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() => _startingTunnels.remove(tunnel.id));
+        setState(() => _startingTunnels.remove(operation));
       }
     }
   }
 
-  Future<void> _stopTunnel(String tunnelId, SshService sshService) async {
+  Future<void> _stopTunnel(
+    String tunnelId,
+    TerminalTab selectedTab,
+    SshService sshService,
+  ) async {
+    if (!_isSessionConnected(selectedTab.sessionId)) return;
     await sshService.stopTunnel(tunnelId);
   }
 
-  Future<void> _stopAllTunnels(SshService sshService) async {
+  Future<void> _stopAllTunnels(
+    TerminalTab selectedTab,
+    SshService sshService,
+  ) async {
+    if (!_isSessionConnected(selectedTab.sessionId)) return;
     await sshService.stopAllTunnels();
   }
 
@@ -383,12 +509,17 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
     _loadProfile();
   }
 
-  Future<void> _deleteTunnel(String tunnelId) async {
+  Future<void> _deleteTunnel(String tunnelId, TerminalTab? selectedTab) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Tunnel'),
-        content: const Text('Remove this tunnel configuration?'),
+        content: Text(
+          selectedTab == null
+              ? 'Remove this tunnel configuration?'
+              : 'Remove this tunnel configuration and stop it in '
+                    '${selectedTab.label} (${selectedTab.tabId})?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -403,11 +534,14 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
       ),
     );
 
+    if (!mounted) return;
     if (confirmed == true && _profile != null) {
-      // Stop the tunnel if it's active
-      final sshService = ref.read(sshServiceProvider(widget.profileId));
-      if (sshService.activeTunnels.containsKey(tunnelId)) {
-        await sshService.stopTunnel(tunnelId);
+      if (selectedTab != null && _isSessionConnected(selectedTab.sessionId)) {
+        final sshService = ref.read(sshServiceProvider(selectedTab.sessionId));
+        if (sshService.activeTunnels.containsKey(tunnelId)) {
+          await sshService.stopTunnel(tunnelId);
+          if (!mounted) return;
+        }
       }
 
       final updatedTunnels = _profile!.tunnels
@@ -445,126 +579,126 @@ class _TunnelScreenState extends ConsumerState<TunnelScreen> {
               MediaQuery.of(context).viewInsets.bottom + 24,
             ),
             child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'New Tunnel',
-                style: GoogleFonts.inter(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'New Tunnel',
+                  style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-              // Type selector
-              Text(
-                'TYPE',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white.withValues(alpha: 0.4),
-                  letterSpacing: 1,
+                // Type selector
+                Text(
+                  'TYPE',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white.withValues(alpha: 0.4),
+                    letterSpacing: 1,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              SegmentedButton<TunnelType>(
-                segments: const [
-                  ButtonSegment(
-                    value: TunnelType.local,
-                    label: Text('Local'),
-                    icon: Icon(Icons.arrow_forward_rounded, size: 16),
+                const SizedBox(height: 8),
+                SegmentedButton<TunnelType>(
+                  segments: const [
+                    ButtonSegment(
+                      value: TunnelType.local,
+                      label: Text('Local'),
+                      icon: Icon(Icons.arrow_forward_rounded, size: 16),
+                    ),
+                    ButtonSegment(
+                      value: TunnelType.remote,
+                      label: Text('Remote'),
+                      icon: Icon(Icons.arrow_back_rounded, size: 16),
+                    ),
+                    ButtonSegment(
+                      value: TunnelType.dynamicSocks5,
+                      label: Text('SOCKS5'),
+                      icon: Icon(Icons.public_rounded, size: 16),
+                    ),
+                  ],
+                  selected: {selectedType},
+                  onSelectionChanged: (s) =>
+                      setSheetState(() => selectedType = s.first),
+                ),
+                const SizedBox(height: 16),
+
+                // Label
+                TextField(
+                  controller: labelCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Label (optional)',
+                    hintText: 'e.g. MySQL, Web Server',
                   ),
-                  ButtonSegment(
-                    value: TunnelType.remote,
-                    label: Text('Remote'),
-                    icon: Icon(Icons.arrow_back_rounded, size: 16),
+                ),
+                const SizedBox(height: 12),
+
+                // Local port
+                TextField(
+                  controller: localPortCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: selectedType == TunnelType.dynamicSocks5
+                        ? 'SOCKS5 Port'
+                        : 'Local Port',
+                    hintText: 'e.g. 8080',
                   ),
-                  ButtonSegment(
-                    value: TunnelType.dynamicSocks5,
-                    label: Text('SOCKS5'),
-                    icon: Icon(Icons.public_rounded, size: 16),
+                ),
+
+                // Remote host + port (not for SOCKS5)
+                if (selectedType != TunnelType.dynamicSocks5) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: remoteHostCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Remote Host',
+                      hintText: 'e.g. localhost, db.internal',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: remotePortCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Remote Port',
+                      hintText: 'e.g. 3306, 5432',
+                    ),
                   ),
                 ],
-                selected: {selectedType},
-                onSelectionChanged: (s) =>
-                    setSheetState(() => selectedType = s.first),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 24),
 
-              // Label
-              TextField(
-                controller: labelCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Label (optional)',
-                  hintText: 'e.g. MySQL, Web Server',
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Local port
-              TextField(
-                controller: localPortCtrl,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: selectedType == TunnelType.dynamicSocks5
-                      ? 'SOCKS5 Port'
-                      : 'Local Port',
-                  hintText: 'e.g. 8080',
-                ),
-              ),
-
-              // Remote host + port (not for SOCKS5)
-              if (selectedType != TunnelType.dynamicSocks5) ...[
-                const SizedBox(height: 12),
-                TextField(
-                  controller: remoteHostCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Remote Host',
-                    hintText: 'e.g. localhost, db.internal',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: remotePortCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Remote Port',
-                    hintText: 'e.g. 3306, 5432',
+                // Save button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _saveTunnel(
+                      context,
+                      labelCtrl.text,
+                      selectedType,
+                      localPortCtrl.text,
+                      remoteHostCtrl.text,
+                      remotePortCtrl.text,
+                    ),
+                    icon: const Icon(Icons.add_rounded),
+                    label: Text(
+                      'Add Tunnel',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
                   ),
                 ),
               ],
-              const SizedBox(height: 24),
-
-              // Save button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => _saveTunnel(
-                    context,
-                    labelCtrl.text,
-                    selectedType,
-                    localPortCtrl.text,
-                    remoteHostCtrl.text,
-                    remotePortCtrl.text,
-                  ),
-                  icon: const Icon(Icons.add_rounded),
-                  label: Text(
-                    'Add Tunnel',
-                    style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
-    ),
-  ).whenComplete(() {
+    ).whenComplete(() {
       labelCtrl.dispose();
       localPortCtrl.dispose();
       remoteHostCtrl.dispose();

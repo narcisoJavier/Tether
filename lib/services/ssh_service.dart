@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartssh2/dartssh2.dart' as dartssh2;
@@ -6,8 +7,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/connection_profile.dart';
+import '../models/host_key_record.dart';
 import '../models/tunnel_config.dart';
 import '../utils/constants.dart';
+import 'host_key_verifier.dart';
+import 'socks5_handler.dart';
 
 /// Connection state for an SSH session.
 enum SshConnectionState {
@@ -17,6 +21,17 @@ enum SshConnectionState {
   authenticating,
   error,
 }
+
+/// Constructs an SSH transport client with mandatory host verification.
+typedef SshClientFactory =
+    dartssh2.SSHClient Function(
+      dartssh2.SSHSocket socket, {
+      required String username,
+      required Duration keepAliveInterval,
+      required List<dartssh2.SSHKeyPair> identities,
+      required dartssh2.SSHPasswordRequestHandler? onPasswordRequest,
+      required dartssh2.SSHHostkeyVerifyHandler onVerifyHostKey,
+    });
 
 /// An active SSH session wrapping dartssh2's SSHSession.
 class SshSession {
@@ -37,10 +52,20 @@ class SshSession {
 /// Provides methods to connect, open interactive shells, execute commands,
 /// and manage the connection lifecycle.
 class SshService extends ChangeNotifier {
+  SshService({
+    required HostKeyVerifier hostKeyVerifier,
+    SshClientFactory clientFactory = dartssh2.SSHClient.new,
+  }) : _hostKeyVerifier = hostKeyVerifier,
+       _clientFactory = clientFactory;
+
+  final HostKeyVerifier _hostKeyVerifier;
+  final SshClientFactory _clientFactory;
   dartssh2.SSHClient? _client;
   dartssh2.SSHSession? _session;
   SshConnectionState _state = SshConnectionState.disconnected;
   String? _errorMessage;
+  bool _isDisposed = false;
+  int _connectionGeneration = 0;
 
   // PTY dimension tracking (last known cols/rows).
   int _currentCols = 80;
@@ -49,6 +74,7 @@ class SshService extends ChangeNotifier {
   SshConnectionState get state => _state;
   String? get errorMessage => _errorMessage;
   bool get isConnected => _state == SshConnectionState.connected;
+  bool get isDisposed => _isDisposed;
   int get currentCols => _currentCols;
   int get currentRows => _currentRows;
 
@@ -68,11 +94,23 @@ class SshService extends ChangeNotifier {
     String? password,
     Duration? keepalive,
     dartssh2.SSHSocket? socket,
+    required HostKeyDecisionHandler onHostKeyDecision,
   }) async {
+    if (_isDisposed) {
+      socket?.close();
+      throw StateError('SSH session was closed.');
+    }
+    if (_client != null ||
+        _state == SshConnectionState.connecting ||
+        _state == SshConnectionState.authenticating) {
+      socket?.close();
+      throw StateError('Disconnect this SSH session before reconnecting.');
+    }
+    final generation = ++_connectionGeneration;
     _state = SshConnectionState.connecting;
     _errorMessage = null;
     notifyListeners();
-
+    dartssh2.SSHSocket? unownedSocket;
     try {
       // Use the provided socket (e.g. from Tailscale) or create a direct
       // TCP connection through dartssh2's native socket.
@@ -83,6 +121,10 @@ class SshService extends ChangeNotifier {
             profile.port,
             timeout: AppConstants.connectionTimeout,
           );
+      unownedSocket = sock;
+      if (_isDisposed || generation != _connectionGeneration) {
+        throw StateError('SSH session was closed.');
+      }
 
       // Build identities for key-based auth. A PEM file may contain
       // multiple keys, so fromPem returns a List<SSHKeyPair>.
@@ -98,7 +140,7 @@ class SshService extends ChangeNotifier {
       // SSHClient handles authentication automatically:
       //  - key auth via `identities`
       //  - password auth via `onPasswordRequest`
-      _client = dartssh2.SSHClient(
+      _client = _clientFactory(
         sock,
         username: profile.username,
         keepAliveInterval: keepalive ?? AppConstants.defaultKeepAlive,
@@ -107,7 +149,24 @@ class SshService extends ChangeNotifier {
             (effectivePassword != null && effectivePassword.isNotEmpty)
             ? () => effectivePassword
             : null,
+        onVerifyHostKey: (algorithm, fingerprintBytes) async {
+          try {
+            return await _hostKeyVerifier.verify(
+              endpoint: HostEndpoint.fromProfile(profile),
+              algorithm: algorithm,
+              fingerprint: utf8.decode(fingerprintBytes),
+              onDecision: onHostKeyDecision,
+            );
+          } on HostKeyChangedException {
+            rethrow;
+          } catch (error) {
+            throw dartssh2.SSHHostkeyError(
+              'Host key verification could not complete: $error',
+            );
+          }
+        },
       );
+      unownedSocket = null;
 
       _state = SshConnectionState.authenticating;
       notifyListeners();
@@ -117,29 +176,45 @@ class SshService extends ChangeNotifier {
       // thrown here if credentials are invalid.
       final testSession = await _client!.execute('true');
       await testSession.done;
+      if (_isDisposed || generation != _connectionGeneration) {
+        throw StateError('SSH session was closed.');
+      }
 
       _state = SshConnectionState.connected;
       notifyListeners();
 
       return _client!;
-    } on dartssh2.SSHAuthError catch (e) {
+    } on dartssh2.SSHAuthError catch (e, stackTrace) {
+      if (_isDisposed || generation != _connectionGeneration) rethrow;
+      final hostKeyChange = unwrapHostKeyChangedException(e);
+      if (hostKeyChange != null) {
+        _state = SshConnectionState.error;
+        _errorMessage = hostKeyChange.toString();
+        notifyListeners();
+        await _safeClose();
+        Error.throwWithStackTrace(hostKeyChange, stackTrace);
+      }
       _state = SshConnectionState.error;
       _errorMessage = 'Authentication failed: ${e.message}';
       notifyListeners();
       await _safeClose();
       rethrow;
     } on SocketException catch (e) {
+      if (_isDisposed || generation != _connectionGeneration) rethrow;
       _state = SshConnectionState.error;
       _errorMessage = 'Connection failed: $e';
       notifyListeners();
       await _safeClose();
       rethrow;
     } catch (e) {
+      if (_isDisposed || generation != _connectionGeneration) rethrow;
       _state = SshConnectionState.error;
       _errorMessage = 'Connection error: $e';
       notifyListeners();
       await _safeClose();
       rethrow;
+    } finally {
+      unownedSocket?.close();
     }
   }
 
@@ -159,7 +234,9 @@ class SshService extends ChangeNotifier {
     _currentCols = cols;
     _currentRows = rows;
 
-    _session = await _client!.shell(
+    final generation = _connectionGeneration;
+    final client = _client!;
+    final session = await client.shell(
       pty: dartssh2.SSHPtyConfig(
         type: AppConstants.defaultTermEnv,
         width: cols,
@@ -168,8 +245,12 @@ class SshService extends ChangeNotifier {
         pixelHeight: pixelHeight,
       ),
     );
-
-    return SshSession(client: _client!, session: _session!);
+    if (_isDisposed || generation != _connectionGeneration) {
+      session.close();
+      throw StateError('SSH session was closed.');
+    }
+    _session = session;
+    return SshSession(client: client, session: session);
   }
 
   /// Execute a single command and return its stdout output.
@@ -203,7 +284,9 @@ class SshService extends ChangeNotifier {
 
   /// Disconnect and clean up all resources.
   Future<void> disconnect() async {
+    final generation = ++_connectionGeneration;
     await _safeClose();
+    if (_isDisposed || generation != _connectionGeneration) return;
     _state = SshConnectionState.disconnected;
     _errorMessage = null;
     notifyListeners();
@@ -215,12 +298,14 @@ class SshService extends ChangeNotifier {
     String? privateKey,
     String? password,
     dartssh2.SSHSocket? socket,
+    required HostKeyDecisionHandler onHostKeyDecision,
   }) async {
     await connect(
       profile: profile,
       privateKey: privateKey,
       password: password,
       socket: socket,
+      onHostKeyDecision: onHostKeyDecision,
     );
     await disconnect();
     return true;
@@ -232,8 +317,14 @@ class SshService extends ChangeNotifier {
   /// enabled. Errors on individual tunnels are logged but don't prevent
   /// other tunnels from starting.
   Future<int> autoStartTunnels(List<TunnelConfig> tunnels) async {
+    final generation = _connectionGeneration;
     int started = 0;
     for (final tunnel in tunnels) {
+      if (_isDisposed ||
+          generation != _connectionGeneration ||
+          _client == null) {
+        break;
+      }
       if (!tunnel.enabled) continue;
       try {
         switch (tunnel.type) {
@@ -262,6 +353,7 @@ class SshService extends ChangeNotifier {
         }
         started++;
       } catch (e) {
+        if (_isDisposed || generation != _connectionGeneration) break;
         debugPrint('[TUNNEL] Auto-start failed for "${tunnel.label}": $e');
       }
     }
@@ -285,16 +377,31 @@ class SshService extends ChangeNotifier {
     required String remoteHost,
     required int remotePort,
   }) async {
-    if (_client == null) {
+    final client = _client;
+    if (_isDisposed || client == null) {
       throw StateError('Not connected. Call connect() first.');
     }
 
+    final generation = _connectionGeneration;
     final serverSocket = await ServerSocket.bind('localhost', localPort);
+    if (_isDisposed || generation != _connectionGeneration) {
+      await serverSocket.close();
+      throw StateError('SSH session was closed.');
+    }
     final subscriptions = <StreamSubscription>[];
 
     final sub = serverSocket.listen((socket) async {
       try {
-        final forward = await _client!.forwardLocal(remoteHost, remotePort);
+        if (_isDisposed || generation != _connectionGeneration) {
+          socket.destroy();
+          return;
+        }
+        final forward = await client.forwardLocal(remoteHost, remotePort);
+        if (_isDisposed || generation != _connectionGeneration) {
+          forward.destroy();
+          socket.destroy();
+          return;
+        }
         forward.stream.cast<List<int>>().pipe(socket);
         socket.cast<List<int>>().pipe(forward.sink);
       } catch (e) {
@@ -326,23 +433,39 @@ class SshService extends ChangeNotifier {
     required String localHost,
     required int localPort,
   }) async {
-    if (_client == null) {
+    final client = _client;
+    if (_isDisposed || client == null) {
       throw StateError('Not connected. Call connect() first.');
     }
 
-    final forward = await _client!.forwardRemote(port: remotePort);
+    final generation = _connectionGeneration;
+    final forward = await client.forwardRemote(port: remotePort);
     if (forward == null) {
       throw StateError('Remote forwarding rejected by server');
+    }
+    if (_isDisposed || generation != _connectionGeneration) {
+      if (!client.isClosed) forward.close();
+      throw StateError('SSH session was closed.');
     }
 
     final subscriptions = <StreamSubscription>[];
     final sub = forward.connections.listen((connection) async {
       try {
+        if (_isDisposed || generation != _connectionGeneration) {
+          connection.destroy();
+          return;
+        }
         final local = await Socket.connect(localHost, localPort);
+        if (_isDisposed || generation != _connectionGeneration) {
+          local.destroy();
+          connection.destroy();
+          return;
+        }
         connection.stream.cast<List<int>>().pipe(local);
         local.cast<List<int>>().pipe(connection.sink);
       } catch (e) {
         debugPrint('[TUNNEL] Remote forward connection error: $e');
+        connection.destroy();
       }
     });
     subscriptions.add(sub);
@@ -366,15 +489,25 @@ class SshService extends ChangeNotifier {
     required String tunnelId,
     required int localPort,
   }) async {
-    if (_client == null) {
+    final client = _client;
+    if (_isDisposed || client == null) {
       throw StateError('Not connected. Call connect() first.');
     }
 
+    final generation = _connectionGeneration;
     final serverSocket = await ServerSocket.bind('localhost', localPort);
+    if (_isDisposed || generation != _connectionGeneration) {
+      await serverSocket.close();
+      throw StateError('SSH session was closed.');
+    }
     final subscriptions = <StreamSubscription>[];
 
     final sub = serverSocket.listen((socket) {
-      _handleSocks5Connection(socket);
+      if (_isDisposed || generation != _connectionGeneration) {
+        socket.destroy();
+        return;
+      }
+      _handleSocks5Connection(socket, client, generation);
     });
     subscriptions.add(sub);
 
@@ -393,10 +526,23 @@ class SshService extends ChangeNotifier {
   }
 
   /// Minimal SOCKS5 handler: supports CONNECT only (no auth).
-  void _handleSocks5Connection(Socket socket) async {
-    try {
-      // Use StreamIterator for proper sequential reads — socket.first
-      // would create separate subscriptions that can miss data.
+  void _handleSocks5Connection(
+    Socket socket,
+    dartssh2.SSHClient client,
+    int generation,
+  ) async {
+    await const Socks5Handler().handle(socket, (host, port) async {
+      if (_isDisposed || generation != _connectionGeneration) {
+        throw StateError('SSH session was closed.');
+      }
+      final forward = await client.forwardLocal(host, port);
+      if (_isDisposed || generation != _connectionGeneration) {
+        forward.destroy();
+        throw StateError('SSH session was closed.');
+      }
+      return forward;
+    });
+    /*try {
       final iter = StreamIterator(socket);
 
       // Read SOCKS5 greeting
@@ -462,7 +608,7 @@ class SshService extends ChangeNotifier {
       try {
         socket.destroy();
       } catch (_) {}
-    }
+    }*/
   }
 
   /// Stop a specific tunnel by ID.
@@ -486,28 +632,60 @@ class SshService extends ChangeNotifier {
   // --- Helpers ---
 
   Future<void> _safeClose() async {
-    // Stop all tunnels before closing the SSH connection.
-    for (final tunnel in _activeTunnels.values) {
-      await tunnel.close();
-    }
+    final tunnels = _activeTunnels.values.toList();
     _activeTunnels.clear();
-
+    final client = _client;
+    _session = null;
+    _client = null;
     try {
-      _client?.close();
+      client?.close();
     } catch (_) {
       // Ignore cleanup errors
     }
-    _session = null;
-    _client = null;
+    for (final tunnel in tunnels) {
+      await tunnel.close();
+    }
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_isDisposed) super.notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    if (_isDisposed) return;
+    _isDisposed = true;
+    _connectionGeneration++;
+    _state = SshConnectionState.disconnected;
+    unawaited(_safeClose());
+    super.dispose();
   }
 
   Future<String> _stdoutToString(Stream<Uint8List> stream) async {
-    final buffer = <int>[];
-    await for (final chunk in stream) {
-      buffer.addAll(chunk);
+    final output = StringBuffer();
+    await for (final text in const Utf8Decoder(
+      allowMalformed: true,
+    ).bind(stream)) {
+      output.write(text);
     }
-    return String.fromCharCodes(buffer);
+    return output.toString();
   }
+}
+
+/// Extracts a changed-host-key failure wrapped by dartssh2 authentication.
+HostKeyChangedException? unwrapHostKeyChangedException(Object error) {
+  Object? current = error;
+  final visited = <Object>{};
+  while (current != null && visited.add(current)) {
+    if (current is HostKeyChangedException) return current;
+    if (current is dartssh2.SSHAuthAbortError) {
+      current = current.reason;
+      continue;
+    }
+    return null;
+  }
+  return null;
 }
 
 /// Represents an active, running tunnel.
@@ -541,13 +719,14 @@ class ActiveTunnel {
   }
 }
 
-/// Provider for per-session SSH service instances.
-///
-/// Each profile gets its own [SshService] keyed by `profileId`, enabling
-/// multiple independent SSH sessions.
-final sshServiceProvider = ChangeNotifierProvider.family<SshService, String>((
-  ref,
-  profileId,
-) {
-  return SshService();
+/// Creates a fresh SSH service with the shared host-key verification policy.
+final sshServiceFactoryProvider = Provider<SshService Function()>((ref) {
+  final verifier = ref.watch(hostKeyVerifierProvider);
+  return () => SshService(hostKeyVerifier: verifier);
 });
+
+/// Services are keyed only by opaque session IDs and retained by their owner.
+final sshServiceProvider = ChangeNotifierProvider.autoDispose
+    .family<SshService, String>((ref, sessionId) {
+      return ref.watch(sshServiceFactoryProvider)();
+    });

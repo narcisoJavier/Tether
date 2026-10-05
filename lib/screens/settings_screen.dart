@@ -172,8 +172,8 @@ class SettingsScreen extends ConsumerWidget {
                     color: Colors.white.withValues(alpha: 0.6),
                     onPressed: fontSize > AppConstants.minFontSize
                         ? () => ref
-                            .read(terminalFontSizeProvider.notifier)
-                            .setSize(fontSize - 1)
+                              .read(terminalFontSizeProvider.notifier)
+                              .setSize(fontSize - 1)
                         : null,
                   ),
                   SettingsValuePill(
@@ -187,8 +187,8 @@ class SettingsScreen extends ConsumerWidget {
                     color: Colors.white.withValues(alpha: 0.6),
                     onPressed: fontSize < AppConstants.maxFontSize
                         ? () => ref
-                            .read(terminalFontSizeProvider.notifier)
-                            .setSize(fontSize + 1)
+                              .read(terminalFontSizeProvider.notifier)
+                              .setSize(fontSize + 1)
                         : null,
                   ),
                 ],
@@ -255,9 +255,7 @@ class SettingsScreen extends ConsumerWidget {
                 onSelectionChanged: (s) => ref
                     .read(terminalCursorTypeProvider.notifier)
                     .setType(s.first),
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                ),
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
               ),
             ],
           ),
@@ -293,7 +291,8 @@ class SettingsScreen extends ConsumerWidget {
 
     return SettingsGroup(
       title: 'Keyboard & Terminal Buffer',
-      subtitle: 'Haptics, terminal scrollback ceiling, and SSH keepalive pings.',
+      subtitle:
+          'Haptics, terminal scrollback ceiling, and SSH keepalive pings.',
       children: [
         // Haptic Feedback
         SettingsTile(
@@ -423,26 +422,46 @@ class SettingsScreen extends ConsumerWidget {
 
   // ── Security & Enclave Group ───────────────────────────────────────────────
   Widget _buildSecurityGroup(BuildContext context, WidgetRef ref) {
-    final lockEnabled = ref.watch(biometricLockEnabledProvider);
+    final appLock = ref.watch(appLockProvider);
     final onboardingService = ref.watch(onboardingServiceProvider);
     final welcomeEnabled = onboardingService.isWelcomeScreenEnabled();
 
     return SettingsGroup(
-      title: 'Security & Enclave',
-      subtitle: 'Biometric gate and startup verification.',
+      title: 'Security & Authentication',
+      subtitle:
+          'App access lock. Requires authentication on restart and after '
+          '30 seconds in the background. Does not encrypt stored data.',
       children: [
         // Biometric Lock
         SettingsTile(
           icon: Icons.fingerprint_rounded,
           iconColor: AppConstants.primaryGreen,
-          title: 'Biometric Lock',
-          subtitle: 'Require fingerprint or face to open app',
-          trailing: Switch(
-            value: lockEnabled,
-            onChanged: (_) =>
-                ref.read(biometricLockEnabledProvider.notifier).toggle(),
-            activeThumbColor: AppConstants.primaryGreen,
-            inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
+          title: 'Device Authentication Lock',
+          subtitle: appLock.busy
+              ? 'Waiting for device authentication…'
+              : appLock.message ??
+                    'Use fingerprint, face, PIN, pattern, or password',
+          trailing: Semantics(
+            label: 'Device authentication lock',
+            child: Switch(
+              value: appLock.enabled,
+              onChanged: appLock.busy
+                  ? null
+                  : (enabled) async {
+                      final changed = await appLock.setEnabled(enabled);
+                      if (!context.mounted || changed) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            appLock.message ??
+                                'Authentication is required to change app lock.',
+                          ),
+                        ),
+                      );
+                    },
+              activeThumbColor: AppConstants.primaryGreen,
+              inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
+            ),
           ),
         ),
 
@@ -456,6 +475,7 @@ class SettingsScreen extends ConsumerWidget {
             value: welcomeEnabled,
             onChanged: (val) async {
               await onboardingService.setWelcomeScreenEnabled(val);
+              if (!context.mounted) return;
               (context as Element).markNeedsBuild();
             },
             activeThumbColor: const Color(0xFFFF9500),
@@ -470,43 +490,65 @@ class SettingsScreen extends ConsumerWidget {
   Widget _buildDataStorageGroup(BuildContext context, WidgetRef ref) {
     return SettingsGroup(
       title: 'Data & Backup',
-      subtitle: 'Encrypted backup export and JSON restoration.',
+      subtitle: 'Password-protected configuration backups.',
       children: [
         // Export Backup
         SettingsTile(
           icon: Icons.file_upload_outlined,
           iconColor: AppConstants.primaryGreen,
           title: 'Export Backup',
-          subtitle: 'Copy profiles & quick commands to clipboard',
+          subtitle: 'Copy an encrypted backup to clipboard',
           onTap: () async {
-            await ExportService.exportToClipboard();
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  backgroundColor: AppConstants.surfaceDark,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    side: BorderSide(
-                      color: AppConstants.primaryGreen.withValues(alpha: 0.3),
+            final password = await _promptBackupPassword(
+              context,
+              'Export Backup',
+            );
+            if (password == null) return;
+            try {
+              final encrypted = await ExportService.exportEncrypted(
+                password: password,
+              );
+              await Clipboard.setData(ClipboardData(text: encrypted));
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: AppConstants.surfaceDark,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(
+                        color: AppConstants.primaryGreen.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    content: Row(
+                      children: [
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          color: AppConstants.primaryGreen,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Encrypted backup copied to clipboard',
+                          style: GoogleFonts.inter(fontSize: 13),
+                        ),
+                      ],
+                    ),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            } catch (error) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      error is FormatException
+                          ? error.message
+                          : 'Could not create or copy the encrypted backup. Try again.',
                     ),
                   ),
-                  content: Row(
-                    children: [
-                      const Icon(
-                        Icons.check_circle_rounded,
-                        color: AppConstants.primaryGreen,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Configuration exported to clipboard',
-                        style: GoogleFonts.inter(fontSize: 13),
-                      ),
-                    ],
-                  ),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+                );
+              }
             }
           },
         ),
@@ -516,7 +558,7 @@ class SettingsScreen extends ConsumerWidget {
           icon: Icons.file_download_outlined,
           iconColor: const Color(0xFF007AFF),
           title: 'Import Backup',
-          subtitle: 'Restore profiles & commands from JSON',
+          subtitle: 'Restore an encrypted v2 backup',
           onTap: () => _showImportDialog(context, ref),
         ),
       ],
@@ -541,8 +583,9 @@ class SettingsScreen extends ConsumerWidget {
               trailing: ElevatedButton(
                 onPressed: () => _checkForUpdate(context),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      AppConstants.primaryGreen.withValues(alpha: 0.15),
+                  backgroundColor: AppConstants.primaryGreen.withValues(
+                    alpha: 0.15,
+                  ),
                   foregroundColor: AppConstants.primaryGreen,
                   elevation: 0,
                   side: BorderSide(
@@ -552,8 +595,10 @@ class SettingsScreen extends ConsumerWidget {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                 ),
                 child: Text(
                   'Check Update',
@@ -715,7 +760,11 @@ class SettingsScreen extends ConsumerWidget {
 
   void _showFontPickerModalSheet(BuildContext context, WidgetRef ref) {
     const fonts = [
-      ('JetBrainsMono', 'JetBrains Mono', 'Engineered for developer readability'),
+      (
+        'JetBrainsMono',
+        'JetBrains Mono',
+        'Engineered for developer readability',
+      ),
       ('FiraCode', 'Fira Code', 'Modern typeface with programming ligatures'),
       ('SpaceMono', 'Space Mono', 'Geometric monospace with retro feel'),
       ('Courier', 'Courier Prime', 'Classic monospace typewriter standard'),
@@ -771,10 +820,10 @@ class SettingsScreen extends ConsumerWidget {
                       f.$1 == 'JetBrainsMono'
                           ? 'JetBrains Mono'
                           : (f.$1 == 'FiraCode'
-                              ? 'Fira Code'
-                              : (f.$1 == 'SpaceMono'
-                                  ? 'Space Mono'
-                                  : 'Courier Prime')),
+                                ? 'Fira Code'
+                                : (f.$1 == 'SpaceMono'
+                                      ? 'Space Mono'
+                                      : 'Courier Prime')),
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -803,42 +852,33 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showImportDialog(BuildContext context, WidgetRef ref) {
+  Future<String?> _promptBackupPassword(
+    BuildContext context,
+    String title,
+  ) async {
     final controller = TextEditingController();
-    showDialog<void>(
+    final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-        ),
-        backgroundColor: AppConstants.surfaceDark,
-        title: Text(
-          'Import Configuration',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
+        title: Text(title),
+        content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'Paste exported JSON to restore profiles and quick commands.',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: Colors.white.withValues(alpha: 0.6),
-                ),
-              ),
-              const SizedBox(height: 12),
+              const Text(ExportService.backupScope),
+              const SizedBox(height: 16),
               TextField(
                 controller: controller,
-                maxLines: 8,
+                obscureText: true,
+                autofocus: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                maxLength: 1024,
                 decoration: const InputDecoration(
-                  hintText:
-                      '{\n  "version": 1,\n  "profiles": [...],\n  "commands": [...]\n}',
-                  hintMaxLines: 5,
+                  labelText: 'Backup password',
+                  helperText:
+                      'At least 8 characters. Keep this password safely.',
                 ),
-                style: GoogleFonts.jetBrainsMono(fontSize: 11),
               ),
             ],
           ),
@@ -846,45 +886,141 @@ class SettingsScreen extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: GoogleFonts.inter()),
+            child: const Text('Cancel'),
           ),
-          ElevatedButton.icon(
-            onPressed: () async {
-              final json = controller.text.trim();
-              if (json.isEmpty) return;
-              final result = await ExportService.importFromJson(json);
-              if (ctx.mounted) {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        Icon(
-                          result.success
-                              ? Icons.check_circle_rounded
-                              : Icons.error_rounded,
-                          color: result.success
-                              ? AppConstants.primaryGreen
-                              : Colors.red,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            result.message,
-                            style: GoogleFonts.inter(fontSize: 13),
-                          ),
-                        ),
-                      ],
-                    ),
-                    duration: const Duration(seconds: 3),
-                  ),
-                );
-              }
-            },
-            icon: const Icon(Icons.file_download_outlined),
-            label: Text('Import', style: GoogleFonts.inter()),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('Continue'),
           ),
         ],
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
+  void _showImportDialog(BuildContext context, WidgetRef ref) {
+    final controller = TextEditingController();
+    var mode = ImportMode.merge;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          backgroundColor: AppConstants.surfaceDark,
+          title: Text(
+            'Restore Encrypted Backup',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+          ),
+          content: SingleChildScrollView(
+            child: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Paste an encrypted v2 backup. Legacy plaintext JSON is unsupported.',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: Colors.white.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButton<ImportMode>(
+                    value: mode,
+                    isExpanded: true,
+                    items: const [
+                      DropdownMenuItem(
+                        value: ImportMode.merge,
+                        child: Text('Merge — update matching IDs'),
+                      ),
+                      DropdownMenuItem(
+                        value: ImportMode.skipExisting,
+                        child: Text('Skip matching IDs'),
+                      ),
+                      DropdownMenuItem(
+                        value: ImportMode.replace,
+                        child: Text('Replace all profiles and commands'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setDialogState(() => mode = value);
+                    },
+                  ),
+                  if (mode == ImportMode.replace)
+                    const Text(
+                      'Replace removes all current profiles and commands. '
+                      'Export a backup first.',
+                    ),
+                  TextField(
+                    controller: controller,
+                    maxLines: 8,
+                    decoration: const InputDecoration(
+                      hintText: '{"format":"tether-backup","version":2,...}',
+                      hintMaxLines: 5,
+                    ),
+                    style: GoogleFonts.jetBrainsMono(fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancel', style: GoogleFonts.inter()),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                final json = controller.text.trim();
+                final selectedMode = mode;
+                if (json.isEmpty) return;
+                final password = await _promptBackupPassword(
+                  ctx,
+                  'Decrypt Backup',
+                );
+                if (password == null || !ctx.mounted) return;
+                final result = await ExportService.importEncrypted(
+                  json,
+                  password: password,
+                  mode: selectedMode,
+                );
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(
+                            result.success
+                                ? Icons.check_circle_rounded
+                                : Icons.error_rounded,
+                            color: result.success
+                                ? AppConstants.primaryGreen
+                                : Colors.red,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              result.message,
+                              style: GoogleFonts.inter(fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                }
+              },
+              icon: const Icon(Icons.file_download_outlined),
+              label: Text('Import', style: GoogleFonts.inter()),
+            ),
+          ],
+        ),
       ),
     ).whenComplete(controller.dispose);
   }
@@ -925,18 +1061,31 @@ class SettingsScreen extends ConsumerWidget {
               child: Text('Later', style: GoogleFonts.inter()),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                launchUrl(
-                  Uri.parse(update.downloadUrl),
-                  mode: LaunchMode.externalApplication,
-                );
-              },
+              onPressed: !update.hasSafeDownloadUrl
+                  ? null
+                  : () async {
+                      Navigator.pop(ctx);
+                      final launched = await launchUrl(
+                        UpdateService.safeExternalUri(update.downloadUrl)!,
+                        mode: LaunchMode.externalApplication,
+                      );
+                      if (!launched && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Could not open the release download page.',
+                            ),
+                          ),
+                        );
+                      }
+                    },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppConstants.primaryGreen,
               ),
               child: Text(
-                'Download',
+                update.hasSafeDownloadUrl
+                    ? 'Open download page'
+                    : 'Download unavailable',
                 style: GoogleFonts.inter(
                   color: Colors.black,
                   fontWeight: FontWeight.w600,
@@ -1095,19 +1244,23 @@ class _MeshNodeIdentityCard extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 14),
-          const Divider(
-            height: 1,
-            thickness: 0.6,
-            color: Colors.white10,
-          ),
+          const Divider(height: 1, thickness: 0.6, color: Colors.white10),
           const SizedBox(height: 12),
           // Stats Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildStatChip('${profiles.length}', 'Profiles', Icons.dns_outlined),
+              _buildStatChip(
+                '${profiles.length}',
+                'Profiles',
+                Icons.dns_outlined,
+              ),
               _buildStatChip('${keys.length}', 'SSH Keys', Icons.key_outlined),
-              _buildStatChip('${commands.length}', 'Commands', Icons.bolt_rounded),
+              _buildStatChip(
+                '${commands.length}',
+                'Commands',
+                Icons.bolt_rounded,
+              ),
             ],
           ),
         ],
@@ -1194,8 +1347,9 @@ class _LiveTerminalPreviewCard extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.35),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(15)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(15),
+              ),
               border: Border(
                 bottom: BorderSide(
                   color: Colors.white.withValues(alpha: 0.06),
@@ -1245,8 +1399,10 @@ class _LiveTerminalPreviewCard extends ConsumerWidget {
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: theme.previewColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),

@@ -279,7 +279,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Tether v${info.latestVersion} is ready to install.',
+              'Tether v${info.latestVersion} is ready to download. Installation is handled by Android after you leave Tether.',
               style: GoogleFonts.inter(
                 color: Colors.white.withValues(alpha: 0.8),
                 fontSize: 14,
@@ -319,13 +319,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              launchUrl(
-                Uri.parse(info.downloadUrl),
-                mode: LaunchMode.externalApplication,
-              );
-            },
+            onPressed: !info.hasSafeDownloadUrl
+                ? null
+                : () async {
+                    Navigator.pop(ctx);
+                    final launched = await launchUrl(
+                      UpdateService.safeExternalUri(info.downloadUrl)!,
+                      mode: LaunchMode.externalApplication,
+                    );
+                    if (!launched && mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Could not open the release download page.',
+                          ),
+                        ),
+                      );
+                    }
+                  },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppConstants.primaryGreen,
               foregroundColor: Colors.black,
@@ -334,7 +345,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ),
             child: Text(
-              'Download APK',
+              info.hasSafeDownloadUrl
+                  ? 'Open download page'
+                  : 'Download unavailable',
               style: GoogleFonts.inter(fontWeight: FontWeight.w600),
             ),
           ),

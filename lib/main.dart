@@ -8,7 +8,9 @@ import 'package:tailscale/tailscale.dart';
 
 import 'app_theme.dart';
 import 'app_router.dart';
+import 'screens/lock_screen.dart';
 import 'models/connection_profile.dart';
+import 'models/host_key_record.dart';
 import 'models/stored_key_pair.dart';
 import 'models/quick_command.dart';
 import 'services/hive_adapters.dart';
@@ -16,6 +18,7 @@ import 'services/onboarding_service.dart';
 import 'services/profile_storage_service.dart';
 import 'services/tailscale_provider.dart';
 import 'services/tailscale_service.dart';
+import 'utils/constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,10 +31,11 @@ void main() async {
   await Hive.initFlutter();
   registerHiveAdapters();
 
-  // Open typed boxes for profiles, keys, and commands.
+  // Open typed boxes for profiles, keys, commands, and trusted host keys.
   await Hive.openBox<ConnectionProfile>('connection_profiles');
   await Hive.openBox<StoredKeyPair>('ssh_keys');
   await Hive.openBox<QuickCommand>('quick_commands');
+  await Hive.openBox<HostKeyRecord>(AppConstants.hostKeysBox);
 
   // One-time migration: move passwords from Hive plain-text to Keystore.
   if (!(prefs.getBool('password_migration_done') ?? false)) {
@@ -91,8 +95,7 @@ void main() async {
 
 /// Top-level app widget.
 ///
-/// The biometric gate is now handled by GoRouter redirect (see app_router.dart),
-/// so this widget just builds the MaterialApp.router.
+/// Routing gates cold starts; the root cover protects mounted sessions on relock.
 class TetherApp extends ConsumerWidget {
   const TetherApp({super.key});
 
@@ -107,6 +110,7 @@ class TetherApp extends ConsumerWidget {
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.dark,
       routerConfig: router,
+      builder: (context, child) => AppLockGate(child: child!),
     );
   }
 }

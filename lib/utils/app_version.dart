@@ -11,7 +11,7 @@ class AppVersion {
   AppVersion._();
 
   /// Compile-time fallback matching pubspec.yaml version.
-  static const String _fallbackVersion = '0.6.1+5';
+  static const String _fallbackVersion = '0.6.2+6';
 
   static String? _cached;
 

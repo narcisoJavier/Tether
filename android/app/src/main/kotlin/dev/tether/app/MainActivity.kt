@@ -1,11 +1,11 @@
 package dev.tether.app
 
 import android.os.Build
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity: FlutterActivity() {
+class MainActivity: FlutterFragmentActivity() {
     private val CPU_ABI_CHANNEL = "dev.tether.app/cpu_abi"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

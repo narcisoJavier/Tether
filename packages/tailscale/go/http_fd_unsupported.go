@@ -29,6 +29,7 @@ type HttpIncomingRequest struct {
 	RemotePort     int
 	LocalAddress   string
 	LocalPort      int
+	Identity       *nodeIdentity
 }
 
 func HttpStart(

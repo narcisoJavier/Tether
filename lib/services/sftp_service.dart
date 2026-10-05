@@ -27,18 +27,28 @@ class SftpService extends ChangeNotifier {
   dartssh2.SftpClient? _sftp;
   bool _isConnected = false;
   String? _errorMessage;
+  bool _isDisposed = false;
+  int _connectionGeneration = 0;
 
   bool get isConnected => _isConnected;
   String? get errorMessage => _errorMessage;
 
   /// Initialize the SFTP session from an established SSHClient.
   Future<void> connect(dartssh2.SSHClient client) async {
+    if (_isDisposed) throw StateError('SFTP browser was closed.');
+    final generation = ++_connectionGeneration;
     try {
-      _sftp = await client.sftp();
+      final sftp = await client.sftp();
+      if (_isDisposed || generation != _connectionGeneration) {
+        sftp.close();
+        throw StateError('SFTP browser was closed.');
+      }
+      _sftp = sftp;
       _isConnected = true;
       _errorMessage = null;
       notifyListeners();
     } catch (e) {
+      if (_isDisposed || generation != _connectionGeneration) rethrow;
       _isConnected = false;
       _errorMessage = 'SFTP connect failed: $e';
       notifyListeners();
@@ -107,20 +117,40 @@ class SftpService extends ChangeNotifier {
   /// Write bytes to a file.
   Future<void> writeFile(String path, Uint8List data) async {
     _ensureConnected();
-    final file = await _sftp!.open(path, mode: dartssh2.SftpFileOpenMode.write);
-    await file.writeBytes(data);
-    await file.close();
+    final file = await _sftp!.open(
+      path,
+      mode:
+          dartssh2.SftpFileOpenMode.create |
+          dartssh2.SftpFileOpenMode.truncate |
+          dartssh2.SftpFileOpenMode.write,
+    );
+    try {
+      await file.writeBytes(data);
+    } finally {
+      await file.close();
+    }
   }
 
   /// Disconnect and clean up.
   Future<void> disconnect() async {
+    _connectionGeneration++;
     try {
       _sftp?.close();
     } catch (_) {}
     _sftp = null;
     _isConnected = false;
     _errorMessage = null;
-    notifyListeners();
+    if (!_isDisposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    if (_isDisposed) return;
+    _isDisposed = true;
+    _connectionGeneration++;
+    _sftp?.close();
+    _sftp = null;
+    super.dispose();
   }
 
   void _ensureConnected() {

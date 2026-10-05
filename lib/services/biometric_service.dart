@@ -1,45 +1,28 @@
-import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 
-/// Service wrapping device biometric/local authentication.
-///
-/// Methods are not cached — every call goes through the platform plugin,
-/// so callers should treat this as a fresh check each time.
+/// Device authentication, including biometrics and the device PIN or password.
 class BiometricService {
-  final LocalAuthentication _auth = LocalAuthentication();
+  final LocalAuthentication _auth;
 
-  /// Whether the device can authenticate using biometrics (fingerprint / face)
-  /// OR device credentials (pin / pattern / passcode).
-  Future<bool> canAuthenticate() async {
+  BiometricService({LocalAuthentication? auth})
+    : _auth = auth ?? LocalAuthentication();
+
+  /// Checks device support; successful authentication also proves enrollment.
+  Future<bool> canAuthenticate() => _auth.isDeviceSupported();
+
+  /// Requests device authentication without carrying an attempt across apps.
+  Future<bool> authenticate({required String reason}) => _auth.authenticate(
+    localizedReason: reason,
+    biometricOnly: false,
+    persistAcrossBackgrounding: false,
+  );
+
+  /// Cancels a native prompt whose result can no longer grant access.
+  Future<void> cancel() async {
     try {
-      final canCheckBiometrics = await _auth.canCheckBiometrics;
-      final isDeviceSupported = await _auth.isDeviceSupported();
-      return canCheckBiometrics || isDeviceSupported;
+      await _auth.stopAuthentication();
     } catch (_) {
-      return false;
-    }
-  }
-
-  /// Prompt the user to authenticate.
-  ///
-  /// Returns `true` when the user successfully authenticates.
-  /// Returns `false` when the user cancels or the auth fails without side
-  /// effects (wrong finger — the OS handles retry internally and only reports
-  /// the final state to the app).
-  ///
-  /// Throws [PlatformException] for platform errors (no hardware, lockout).
-  Future<bool> authenticate({
-    required String reason,
-    bool biometricOnly = false,
-  }) async {
-    try {
-      return await _auth.authenticate(
-        localizedReason: reason,
-        biometricOnly: biometricOnly,
-        persistAcrossBackgrounding: true,
-      );
-    } on PlatformException {
-      rethrow;
+      // The controller also invalidates the result if native cancellation fails.
     }
   }
 }

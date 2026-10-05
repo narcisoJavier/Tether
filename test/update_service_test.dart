@@ -76,4 +76,34 @@ void main() {
       expect(UpdateService.isNewer('v0.5', 'invalid'), isFalse);
     });
   });
+
+  group('UpdateService.safeExternalUri', () {
+    test('accepts HTTPS release URLs', () {
+      expect(
+        UpdateService.safeExternalUri(
+          'https://github.com/example/tether/releases',
+        ),
+        isNotNull,
+      );
+    });
+
+    test('rejects non-HTTPS and malformed URLs', () {
+      expect(
+        UpdateService.safeExternalUri('http://github.com/example'),
+        isNull,
+      );
+      expect(UpdateService.safeExternalUri('javascript:alert(1)'), isNull);
+      expect(UpdateService.safeExternalUri('not a URL'), isNull);
+      expect(UpdateService.safeExternalUri('https:///missing-host'), isNull);
+    });
+
+    test('reports unsafe cached metadata without throwing', () {
+      const info = UpdateInfo(
+        latestVersion: '0.7.0',
+        downloadUrl: 'http://example.com/tether.apk',
+        releaseNotes: '',
+      );
+      expect(info.hasSafeDownloadUrl, isFalse);
+    });
+  });
 }

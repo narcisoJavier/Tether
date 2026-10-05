@@ -4,6 +4,7 @@ import 'package:hive/src/binary/binary_reader_impl.dart';
 import 'package:hive/src/binary/binary_writer_impl.dart';
 import 'package:hive/src/registry/type_registry_impl.dart';
 import 'package:tether/models/connection_profile.dart';
+import 'package:tether/models/host_key_record.dart';
 import 'package:tether/models/quick_command.dart';
 import 'package:tether/models/stored_key_pair.dart';
 import 'package:tether/models/tunnel_config.dart';
@@ -186,12 +187,13 @@ void main() {
   });
 
   group('registerHiveAdapters', () {
-    test('registers all four adapters (idempotent)', () {
+    test('registers all five adapters (idempotent)', () {
       registerHiveAdapters();
       expect(Hive.isAdapterRegistered(0), isTrue);
       expect(Hive.isAdapterRegistered(1), isTrue);
       expect(Hive.isAdapterRegistered(2), isTrue);
       expect(Hive.isAdapterRegistered(3), isTrue);
+      expect(Hive.isAdapterRegistered(4), isTrue);
     });
   });
 
@@ -341,6 +343,36 @@ void main() {
       final restored = profileAdapter.read(reader);
 
       expect(restored.tunnels, isEmpty);
+    });
+  });
+
+  group('HostKeyRecordAdapter', () {
+    test('round-trips a Tailscale endpoint and timestamps', () {
+      final original = HostKeyRecord(
+        endpoint: HostEndpoint(
+          host: 'Node.Tailnet.TS.NET.',
+          port: 2222,
+          connectionMethod: ConnectionMethod.tailscale,
+        ),
+        algorithm: 'ssh-ed25519',
+        fingerprint: 'SHA256:example',
+        firstSeen: DateTime.utc(2026, 1, 2, 3),
+        lastSeen: DateTime.utc(2026, 2, 3, 4),
+      );
+
+      final restored = _roundTrip(original, HostKeyRecordAdapter());
+
+      expect(restored.endpoint.host, 'node.tailnet.ts.net');
+      expect(restored.endpoint.port, 2222);
+      expect(restored.endpoint.connectionMethod, ConnectionMethod.tailscale);
+      expect(restored.algorithm, 'ssh-ed25519');
+      expect(restored.fingerprint, 'SHA256:example');
+      expect(restored.firstSeen, DateTime.utc(2026, 1, 2, 3));
+      expect(restored.lastSeen, DateTime.utc(2026, 2, 3, 4));
+    });
+
+    test('typeId is 4', () {
+      expect(HostKeyRecordAdapter().typeId, 4);
     });
   });
 }

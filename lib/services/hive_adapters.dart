@@ -1,6 +1,7 @@
 import 'package:hive/hive.dart';
 
 import '../models/connection_profile.dart';
+import '../models/host_key_record.dart';
 import '../models/stored_key_pair.dart';
 import '../models/quick_command.dart';
 import '../models/tunnel_config.dart';
@@ -20,6 +21,9 @@ void registerHiveAdapters() {
   }
   if (!Hive.isAdapterRegistered(3)) {
     Hive.registerAdapter(TunnelConfigAdapter());
+  }
+  if (!Hive.isAdapterRegistered(4)) {
+    Hive.registerAdapter(HostKeyRecordAdapter());
   }
 }
 
@@ -224,5 +228,75 @@ class TunnelConfigAdapter extends TypeAdapter<TunnelConfig> {
     writer.write(obj.remoteHost);
     writer.writeInt(obj.remotePort);
     writer.writeBool(obj.enabled);
+  }
+}
+
+// --- HostKeyRecord TypeAdapter ---
+
+/// Hive adapter for persisted SSH host-key trust records.
+class HostKeyRecordAdapter extends TypeAdapter<HostKeyRecord> {
+  @override
+  final typeId = 4;
+
+  @override
+  HostKeyRecord read(BinaryReader reader) {
+    final fieldCount = reader.readByte();
+    final fields = <int, dynamic>{};
+    for (var index = 0; index < fieldCount; index++) {
+      fields[reader.readByte()] = reader.read();
+    }
+
+    final methodValue = fields[3];
+    final method = methodValue is String
+        ? ConnectionMethod.values.firstWhere(
+            (candidate) => candidate.name == methodValue,
+            orElse: () => ConnectionMethod.direct,
+          )
+        : methodValue is int &&
+              methodValue >= 0 &&
+              methodValue < ConnectionMethod.values.length
+        ? ConnectionMethod.values[methodValue]
+        : ConnectionMethod.direct;
+    final now = DateTime.now().toUtc();
+    final firstSeen = fields[6] == null
+        ? now
+        : DateTime.fromMillisecondsSinceEpoch(fields[6] as int, isUtc: true);
+    final lastSeen = fields[7] == null
+        ? firstSeen
+        : DateTime.fromMillisecondsSinceEpoch(fields[7] as int, isUtc: true);
+
+    return HostKeyRecord(
+      endpoint: HostEndpoint(
+        host: fields[1] as String,
+        port: fields[2] as int,
+        connectionMethod: method,
+      ),
+      algorithm: fields[4] as String,
+      fingerprint: fields[5] as String,
+      firstSeen: firstSeen,
+      lastSeen: lastSeen,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, HostKeyRecord obj) {
+    writer
+      ..writeByte(8)
+      ..writeByte(0)
+      ..write(1)
+      ..writeByte(1)
+      ..write(obj.endpoint.host)
+      ..writeByte(2)
+      ..write(obj.endpoint.port)
+      ..writeByte(3)
+      ..write(obj.endpoint.connectionMethod.name)
+      ..writeByte(4)
+      ..write(obj.algorithm)
+      ..writeByte(5)
+      ..write(obj.fingerprint)
+      ..writeByte(6)
+      ..write(obj.firstSeen.toUtc().millisecondsSinceEpoch)
+      ..writeByte(7)
+      ..write(obj.lastSeen.toUtc().millisecondsSinceEpoch);
   }
 }

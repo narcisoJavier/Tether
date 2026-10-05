@@ -5,6 +5,7 @@
 /// (e.g. Quick Commands) via [PendingTabCommand].
 class TerminalTab {
   final String tabId;
+  final String sessionId;
   final String profileId;
   final String label;
   final bool isConnected;
@@ -14,6 +15,7 @@ class TerminalTab {
 
   const TerminalTab({
     required this.tabId,
+    required this.sessionId,
     required this.profileId,
     required this.label,
     this.isConnected = false,
@@ -33,6 +35,7 @@ class TerminalTab {
   }) {
     return TerminalTab(
       tabId: tabId ?? this.tabId,
+      sessionId: sessionId,
       profileId: profileId ?? this.profileId,
       label: label ?? this.label,
       isConnected: isConnected ?? this.isConnected,

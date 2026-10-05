@@ -52,8 +52,46 @@ CustomTransitionPage<void> _buildTransitionPage({
 /// (which would crash due to GlobalKey reuse).
 class _AuthRefreshListenable extends ChangeNotifier {
   _AuthRefreshListenable(Ref ref) {
-    ref.listen(biometricLockEnabledProvider, (_, _) => notifyListeners());
-    ref.listen(authSessionProvider, (_, _) => notifyListeners());
+    ref.listen(appLockProvider, (_, _) => notifyListeners());
+  }
+}
+
+/// Preserves mounted sessions on relock and defers new destinations until unlock.
+class AppLockRouteGuard {
+  String? _lastAccessibleLocation;
+  String? _pendingLocation;
+
+  /// Gates cold starts before protected screens are constructed.
+  String? redirect({required Uri uri, required bool locked}) {
+    final location = uri.toString();
+    if (locked) {
+      final previous = _lastAccessibleLocation;
+      if (previous != null) {
+        if (location != previous && uri.path != '/lock') {
+          _pendingLocation = location;
+        }
+        return location == previous ? null : previous;
+      }
+      if (uri.path == '/lock') return null;
+      return Uri(path: '/lock', queryParameters: {'from': location}).toString();
+    }
+    if (uri.path == '/lock') {
+      final destination = Uri.tryParse(uri.queryParameters['from'] ?? '/');
+      if (destination == null ||
+          destination.hasScheme ||
+          destination.hasAuthority ||
+          !destination.path.startsWith('/') ||
+          destination.path.startsWith('//') ||
+          destination.path == '/lock') {
+        return '/';
+      }
+      return destination.toString();
+    }
+    final pending = _pendingLocation;
+    _pendingLocation = null;
+    if (pending != null && pending != location) return pending;
+    _lastAccessibleLocation = location;
+    return null;
   }
 }
 
@@ -63,38 +101,35 @@ class _AuthRefreshListenable extends ChangeNotifier {
 /// Home, Terminal, Commands, Keys, and Settings screens.
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshListenable = _AuthRefreshListenable(ref);
+  final lockGuard = AppLockRouteGuard();
 
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: '/',
     refreshListenable: refreshListenable,
     redirect: (context, state) {
       final container = ProviderScope.containerOf(context);
       final onboardingService = container.read(onboardingServiceProvider);
-      final lockEnabled = container.read(biometricLockEnabledProvider);
-      final isAuthenticated = container.read(authSessionProvider);
+      final appLock = container.read(appLockProvider);
       final isComplete = onboardingService.isOnboardingComplete();
       final isOnboardingRoute = state.matchedLocation == '/onboarding';
       final isWelcomeRoute = state.matchedLocation == '/welcome';
       final isLockRoute = state.matchedLocation == '/lock';
+
+      final lockRedirect = lockGuard.redirect(
+        uri: state.uri,
+        locked: appLock.requiresAuthentication,
+      );
+      if (lockRedirect != null) return lockRedirect;
+      if (appLock.requiresAuthentication) return null;
 
       // First-time onboarding redirect
       if (!isComplete && !isOnboardingRoute) {
         return '/onboarding';
       }
 
-      // Biometric lock gate (route-based instead of widget-level)
-      if (lockEnabled &&
-          !isAuthenticated &&
-          !isLockRoute &&
-          !isOnboardingRoute) {
-        return '/lock';
-      }
-      if (isLockRoute && (!lockEnabled || isAuthenticated)) {
-        return '/';
-      }
-
       // Welcome-back screen (second+ launch, if enabled)
       if (isComplete &&
+          state.uri.path == '/' &&
           !isWelcomeRoute &&
           !isLockRoute &&
           onboardingService.shouldShowWelcomeBack()) {
@@ -111,7 +146,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/lock',
         pageBuilder: (context, state) =>
-            _buildTransitionPage(child: const LockScreen(), state: state),
+            NoTransitionPage(key: state.pageKey, child: const LockScreen()),
       ),
       GoRoute(
         path: '/onboarding',
@@ -135,9 +170,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             extendBody: !isTerminal,
             bottomNavigationBar: isTerminal
                 ? null
-                : GlassBottomNavBar(
-                    navigationShell: navigationShell,
-                  ),
+                : GlassBottomNavBar(navigationShell: navigationShell),
           );
         },
         branches: [
@@ -255,4 +288,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+  ref.onDispose(() {
+    router.dispose();
+    refreshListenable.dispose();
+  });
+  return router;
 });

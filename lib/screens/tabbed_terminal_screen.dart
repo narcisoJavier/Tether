@@ -1,29 +1,30 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:uuid/uuid.dart';
 import 'package:xterm/xterm.dart';
 
 import '../models/connection_profile.dart';
 import '../models/terminal_tab.dart';
-import '../services/key_service.dart';
+import '../services/host_key_verifier.dart';
 import '../services/pending_quick_command_provider.dart';
 import '../services/profile_storage_service.dart';
 import '../services/quick_command_layout_service.dart';
 import '../services/ssh_service.dart';
+import '../services/ssh_connection_factory.dart';
 import '../services/tab_manager.dart';
-import '../services/tailscale_provider.dart';
-import '../services/tailscale_ssh_socket.dart';
 import '../services/terminal_tab_request_provider.dart';
 import '../utils/constants.dart';
 import '../utils/agent_presets.dart';
 import '../utils/app_version.dart';
 import '../utils/terminal_settings_provider.dart';
+import '../utils/terminal_io.dart';
+import '../widgets/host_key_trust_dialog.dart';
 
 /// Full-screen multi-tab terminal with persistent SSH sessions.
 ///
@@ -45,6 +46,8 @@ class TabbedTerminalScreen extends ConsumerStatefulWidget {
 /// not serialized (tabs are ephemeral, tied to the SSH session lifecycle).
 class _TabData {
   final String tabId;
+  final String sessionId;
+  final ProviderSubscription<SshService> sshLease;
   final String profileId;
   final String label;
   final Terminal terminal;
@@ -59,19 +62,36 @@ class _TabData {
   bool userZoomed = false;
   Size lastTerminalSize = Size.zero;
   StreamSubscription? stdoutSub;
-  final BytesBuilder utf8Buffer = BytesBuilder();
+  late StreamingUtf8Decoder utf8Decoder;
 
   _TabData({
     required this.tabId,
+    required this.sessionId,
+    required this.sshLease,
     required this.profileId,
     required this.label,
     required this.terminal,
     required this.controller,
     required this.fontSize,
     this.initialCommand,
-  });
+  }) {
+    utf8Decoder = StreamingUtf8Decoder(terminal.write);
+  }
 
   bool get disposed => stdoutSub == null && !isConnecting && !isConnected;
+
+  SshService get sshService => sshLease.read();
+
+  void close() {
+    terminal.onOutput = null;
+    terminal.onResize = null;
+    unawaited(stdoutSub?.cancel());
+    stdoutSub = null;
+    utf8Decoder.close();
+    sshService.dispose();
+    sshLease.close();
+    controller.dispose();
+  }
 }
 
 // ── Screen state ──────────────────────────────────────────────────────────────
@@ -98,7 +118,7 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     for (final tab in _tabs.values) {
-      tab.stdoutSub?.cancel();
+      tab.close();
       if (tab.tabId.isNotEmpty) {
         _tabManager.removeTab(tab.tabId);
       }
@@ -118,6 +138,11 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
 
     _tabCounter++;
     final tabId = 'tab_$_tabCounter';
+    final sessionId = const Uuid().v4();
+    final sshLease = ref.listenManual(
+      sshServiceProvider(sessionId),
+      (previous, next) {},
+    );
     final scrollback = ref.read(terminalScrollbackProvider);
     final fontSize = ref.read(terminalFontSizeProvider);
 
@@ -125,6 +150,8 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     final controller = TerminalController();
     final tabData = _TabData(
       tabId: tabId,
+      sessionId: sessionId,
+      sshLease: sshLease,
       profileId: profileId,
       label: profile.shortLabel,
       terminal: terminal,
@@ -137,6 +164,7 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     _tabManager.addTab(
       TerminalTab(
         tabId: tabId,
+        sessionId: sessionId,
         profileId: profileId,
         label: profile.shortLabel,
         isConnecting: true,
@@ -147,7 +175,7 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     terminal.onResize = (width, height, pixelWidth, pixelHeight) {
       if (tabData.shellStarted) {
         if (width > 0 && height > 0) {
-          final sshService = ref.read(sshServiceProvider(profileId));
+          final sshService = tabData.sshService;
           sshService.resizeShell(
             cols: width,
             rows: height,
@@ -160,7 +188,7 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
 
     // Wire output handler.
     terminal.onOutput = (String data) {
-      final sshService = ref.read(sshServiceProvider(profileId));
+      final sshService = tabData.sshService;
       sshService.writeStdin(Uint8List.fromList(utf8.encode(data)));
     };
 
@@ -198,38 +226,23 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
         throw StateError('Profile not found: ${tab.profileId}');
       }
 
-      final sshService = ref.read(sshServiceProvider(tab.profileId));
-
-      TailscaleSSHSocket? sock;
-      if (profile.connectionMethod == ConnectionMethod.tailscale) {
-        final ts = ref.read(tailscaleServiceProvider);
-        final conn = await ts.dial(
-          profile.host,
-          profile.port,
-          timeout: const Duration(seconds: 10),
-        );
-        sock = TailscaleSSHSocket(conn);
-      }
-
-      String? privateKey;
-      if (profile.keyId != null) {
-        privateKey = await ref
-            .read(keyServiceProvider)
-            .getPrivateKey(profile.keyId!);
-      }
-
-      final securePassword = await ref
-          .read(profileStorageProvider)
-          .getPassword(profile.id);
-      final effectivePassword = securePassword ?? profile.password;
-
-      await sshService.connect(
-        profile: profile,
-        privateKey: privateKey,
-        password: effectivePassword,
-        keepalive: Duration(seconds: ref.read(terminalKeepaliveProvider)),
-        socket: sock,
-      );
+      final sshService = tab.sshService;
+      await ref
+          .read(sshConnectionFactoryProvider)
+          .connect(
+            service: sshService,
+            profile: profile,
+            onHostKeyDecision: (challenge) {
+              if (!mounted || !_tabs.containsKey(tab.tabId)) {
+                return Future.value(HostKeyTrustDecision.reject);
+              }
+              return showHostKeyTrustDialog(
+                context: context,
+                challenge: challenge,
+                timeout: ref.read(hostKeyVerifierProvider).decisionTimeout,
+              );
+            },
+          );
       if (!mounted || !_tabs.containsKey(tab.tabId)) return;
 
       tab.terminal.write(
@@ -262,18 +275,33 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
       _maybeStartShell(tab);
     } catch (e) {
       if (!mounted || !_tabs.containsKey(tab.tabId)) return;
+      var displayError = e.toString();
+      if (e is HostKeyChangedException) {
+        final replacement = await showHostKeyChangedDialog(
+          context: context,
+          change: e,
+          verifier: ref.read(hostKeyVerifierProvider),
+        );
+        if (!mounted || !_tabs.containsKey(tab.tabId)) return;
+        if (replacement == HostKeyReplacementResult.replaced) {
+          displayError =
+              'Trusted host key replaced. Retry the connection to continue.';
+        }
+      }
       tab.isConnecting = false;
-      tab.error = e.toString();
-      tab.terminal.write('\r\n\x1b[31m✗ Connection failed:\x1b[0m $e\r\n\r\n');
+      tab.error = displayError;
+      tab.terminal.write(
+        '\r\n\x1b[31m✗ Connection failed:\x1b[0m $displayError\r\n\r\n',
+      );
 
       _tabManager.updateTab(
         tab.tabId,
-        (t) => t.copyWith(isConnecting: false, error: e.toString()),
+        (t) => t.copyWith(isConnecting: false, error: displayError),
       );
 
       final storage = ref.read(profileStorageProvider);
       await storage.updateConnectionStatus(tab.profileId, false);
-
+      if (!mounted || !_tabs.containsKey(tab.tabId)) return;
       setState(() {});
     }
   }
@@ -292,7 +320,7 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
   }
 
   Future<void> _startShell(_TabData tab, int cols, int rows) async {
-    final sshService = ref.read(sshServiceProvider(tab.profileId));
+    final sshService = tab.sshService;
 
     final charHeight = tab.fontSize;
     final charWidth = tab.fontSize * AppConstants.charWidthRatio;
@@ -306,11 +334,14 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
         pixelWidth: pixelWidth,
         pixelHeight: pixelHeight,
       );
+      if (!mounted || !_tabs.containsKey(tab.tabId)) return;
 
       // Send initial command if provided.
       if (tab.initialCommand != null && tab.initialCommand!.isNotEmpty) {
         session.stdinSink.add(
-          Uint8List.fromList(utf8.encode(tab.initialCommand!)),
+          Uint8List.fromList(
+            utf8.encode(normalizePtyCommand(tab.initialCommand!)),
+          ),
         );
         tab.initialCommand = null;
       }
@@ -320,10 +351,12 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
           if (mounted) _writeBytesToTerminal(tab, data);
         },
         onDone: () {
-          if (!mounted) return;
-          _flushUtf8Buffer(tab);
+          if (!mounted || !_tabs.containsKey(tab.tabId)) return;
+          tab.utf8Decoder.close();
           tab.terminal.write('\r\n\x1b[33m⚡ Connection closed\x1b[0m\r\n');
           tab.isConnected = false;
+          tab.shellStarted = false;
+          unawaited(sshService.disconnect());
           _tabManager.updateTab(
             tab.tabId,
             (t) => t.copyWith(isConnected: false, shellStarted: false),
@@ -331,10 +364,12 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
           setState(() {});
         },
         onError: (e) {
-          if (!mounted) return;
-          _flushUtf8Buffer(tab);
+          if (!mounted || !_tabs.containsKey(tab.tabId)) return;
+          tab.utf8Decoder.close();
           tab.terminal.write('\r\n\x1b[31m✗ Error: $e\x1b[0m\r\n');
           tab.isConnected = false;
+          tab.shellStarted = false;
+          unawaited(sshService.disconnect());
           _tabManager.updateTab(
             tab.tabId,
             (t) => t.copyWith(isConnected: false, shellStarted: false),
@@ -347,9 +382,10 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
 
       setState(() {});
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !_tabs.containsKey(tab.tabId)) return;
       tab.terminal.write('\r\n\x1b[31m✗ Shell error:\x1b[0m $e\r\n');
       tab.isConnected = false;
+      tab.shellStarted = false;
       _tabManager.updateTab(tab.tabId, (t) => t.copyWith(isConnected: false));
       setState(() {});
     }
@@ -358,16 +394,7 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
   // ── Output handling ──────────────────────────────────────────────────────
 
   void _writeBytesToTerminal(_TabData tab, Uint8List data) {
-    tab.utf8Buffer.add(data);
-    final bytes = tab.utf8Buffer.takeBytes();
-    final decoded = utf8.decode(bytes, allowMalformed: true);
-    tab.terminal.write(decoded);
-  }
-
-  void _flushUtf8Buffer(_TabData tab) {
-    if (tab.utf8Buffer.isEmpty) return;
-    final bytes = tab.utf8Buffer.takeBytes();
-    tab.terminal.write(utf8.decode(bytes, allowMalformed: true));
+    tab.utf8Decoder.add(data);
   }
 
   // ── Tab management ──────────────────────────────────────────────────────
@@ -445,11 +472,7 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
 
     if (!mounted || !_tabs.containsKey(tabId)) return;
 
-    // Cancel SSH session.
-    tab.stdoutSub?.cancel();
-    tab.stdoutSub = null;
-    final sshService = ref.read(sshServiceProvider(tab.profileId));
-    unawaited(sshService.disconnect());
+    tab.close();
 
     // Remove from tracking.
     _tabManager.removeTab(tabId);
@@ -470,9 +493,11 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
   /// Retries a failed connection without forcing the user to close the tab.
   Future<void> _retryTab(_TabData tab) async {
     if (!mounted || !_tabs.containsKey(tab.tabId) || tab.isConnecting) return;
-
-    tab.stdoutSub?.cancel();
+    tab.isConnecting = true;
+    await tab.stdoutSub?.cancel();
+    if (!mounted || !_tabs.containsKey(tab.tabId)) return;
     tab.stdoutSub = null;
+    tab.utf8Decoder = StreamingUtf8Decoder(tab.terminal.write);
     tab.isConnected = false;
     tab.shellStarted = false;
     tab.error = null;
@@ -480,7 +505,7 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     setState(() {});
 
     try {
-      await ref.read(sshServiceProvider(tab.profileId)).disconnect();
+      await tab.sshService.disconnect();
     } catch (_) {
       // A failed session may already be disconnected; continue with retry.
     }
@@ -1352,15 +1377,18 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
         onRunCommand: (cmd) {
           Navigator.pop(ctx);
           HapticFeedback.mediumImpact();
-          final sshService = ref.read(sshServiceProvider(tab.profileId));
-          final normalized = cmd.trim();
-          sshService.writeStdin(Uint8List.fromList(utf8.encode('$normalized\r')));
+          if (!mounted || !_tabs.containsKey(tab.tabId)) return;
+          final sshService = tab.sshService;
+          sshService.writeStdin(
+            Uint8List.fromList(utf8.encode(normalizePtyCommand(cmd))),
+          );
         },
         onPasteCommand: (cmd) {
           Navigator.pop(ctx);
           HapticFeedback.lightImpact();
           final normalized = cmd.trim();
-          final sshService = ref.read(sshServiceProvider(tab.profileId));
+          if (!mounted || !_tabs.containsKey(tab.tabId)) return;
+          final sshService = tab.sshService;
           sshService.writeStdin(Uint8List.fromList(utf8.encode(normalized)));
         },
         onManageCommands: () {
@@ -1588,7 +1616,10 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
                 onTap: () => context.go('/profile/new'),
                 borderRadius: BorderRadius.circular(6),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   child: Row(
                     children: [
                       const Icon(
@@ -1624,8 +1655,8 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     final envColor = env == 'PROD'
         ? const Color(0xFFFF453A)
         : env == 'TAILSCALE'
-            ? AppConstants.accentBlue
-            : const Color(0xFF30D158);
+        ? AppConstants.accentBlue
+        : const Color(0xFF30D158);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1649,14 +1680,19 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: (isTailscale ? AppConstants.accentBlue : AppConstants.primaryGreen)
-                        .withValues(alpha: 0.12),
+                    color:
+                        (isTailscale
+                                ? AppConstants.accentBlue
+                                : AppConstants.primaryGreen)
+                            .withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     isTailscale ? Icons.hub_rounded : Icons.dns_rounded,
                     size: 18,
-                    color: isTailscale ? AppConstants.accentBlue : AppConstants.primaryGreen,
+                    color: isTailscale
+                        ? AppConstants.accentBlue
+                        : AppConstants.primaryGreen,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1677,7 +1713,10 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
                           ),
                           const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 1,
+                            ),
                             decoration: BoxDecoration(
                               color: envColor.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(4),
@@ -1712,7 +1751,10 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
                 ),
                 // Connect Action Capsule
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: AppConstants.primaryGreen.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
@@ -1749,8 +1791,6 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
     );
   }
 
-
-
   // ── Mobile keyboard bar ────────────────────────────────────────────────
 
   Widget _buildMobileKeyboardBar(_TabData tab, bool isLandscape) {
@@ -1776,14 +1816,10 @@ class _TabbedTerminalScreenState extends ConsumerState<TabbedTerminalScreen>
       _KeyDef('\$', () => tab.terminal.textInput('\$')),
       _KeyDef('&', () => tab.terminal.textInput('&')),
       _KeyDef(':', () => tab.terminal.textInput(':')),
-      _KeyDef(
-        'CLR',
-        () {
-          final sshService = ref.read(sshServiceProvider(tab.profileId));
-          sshService.writeStdin(Uint8List.fromList(utf8.encode('clear\r')));
-        },
-        color: AppConstants.accentBlue,
-      ),
+      _KeyDef('CLR', () {
+        final sshService = tab.sshService;
+        sshService.writeStdin(Uint8List.fromList(utf8.encode('clear\r')));
+      }, color: AppConstants.accentBlue),
     ];
 
     return Container(
@@ -1860,10 +1896,7 @@ class _SpecialKeyButton extends ConsumerWidget {
         },
         borderRadius: BorderRadius.circular(7),
         child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 10,
-            vertical: 4,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
             border: Border.all(
               color: (color != null)
@@ -2135,13 +2168,14 @@ class _ServerPickerSheetState extends State<_ServerPickerSheet> {
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
                     final p = filtered[index];
-                    final isTailscale = p.connectionMethod == ConnectionMethod.tailscale;
+                    final isTailscale =
+                        p.connectionMethod == ConnectionMethod.tailscale;
                     final env = p.effectiveEnvironment.toUpperCase();
                     final envColor = env == 'PROD'
                         ? const Color(0xFFFF453A)
                         : env == 'TAILSCALE'
-                            ? AppConstants.accentBlue
-                            : const Color(0xFF30D158);
+                        ? AppConstants.accentBlue
+                        : const Color(0xFF30D158);
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
@@ -2167,21 +2201,29 @@ class _ServerPickerSheetState extends State<_ServerPickerSheet> {
                                   width: 38,
                                   height: 38,
                                   decoration: BoxDecoration(
-                                    color: (isTailscale ? AppConstants.accentBlue : AppConstants.primaryGreen)
-                                        .withValues(alpha: 0.12),
+                                    color:
+                                        (isTailscale
+                                                ? AppConstants.accentBlue
+                                                : AppConstants.primaryGreen)
+                                            .withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Icon(
-                                    isTailscale ? Icons.hub_rounded : Icons.dns_rounded,
+                                    isTailscale
+                                        ? Icons.hub_rounded
+                                        : Icons.dns_rounded,
                                     size: 18,
-                                    color: isTailscale ? AppConstants.accentBlue : AppConstants.primaryGreen,
+                                    color: isTailscale
+                                        ? AppConstants.accentBlue
+                                        : AppConstants.primaryGreen,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 // Host info
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Row(
                                         children: [
@@ -2195,12 +2237,20 @@ class _ServerPickerSheetState extends State<_ServerPickerSheet> {
                                           ),
                                           const SizedBox(width: 6),
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 5,
+                                              vertical: 1,
+                                            ),
                                             decoration: BoxDecoration(
-                                              color: envColor.withValues(alpha: 0.12),
-                                              borderRadius: BorderRadius.circular(4),
+                                              color: envColor.withValues(
+                                                alpha: 0.12,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
                                               border: Border.all(
-                                                color: envColor.withValues(alpha: 0.3),
+                                                color: envColor.withValues(
+                                                  alpha: 0.3,
+                                                ),
                                                 width: 0.6,
                                               ),
                                             ),
@@ -2220,7 +2270,9 @@ class _ServerPickerSheetState extends State<_ServerPickerSheet> {
                                         '${p.username}@${p.host}:${p.port}',
                                         style: GoogleFonts.jetBrainsMono(
                                           fontSize: 11,
-                                          color: Colors.white.withValues(alpha: 0.5),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.5,
+                                          ),
                                         ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
@@ -2230,12 +2282,18 @@ class _ServerPickerSheetState extends State<_ServerPickerSheet> {
                                 ),
                                 // Connect Button
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: AppConstants.primaryGreen.withValues(alpha: 0.15),
+                                    color: AppConstants.primaryGreen.withValues(
+                                      alpha: 0.15,
+                                    ),
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
-                                      color: AppConstants.primaryGreen.withValues(alpha: 0.35),
+                                      color: AppConstants.primaryGreen
+                                          .withValues(alpha: 0.35),
                                       width: 0.8,
                                     ),
                                   ),
@@ -2323,19 +2381,23 @@ class _QuickCommandPickerSheetState extends State<_QuickCommandPickerSheet> {
     }).toList();
 
     // Map presets into uniform view model
-    final presetItems = AgentPresets.all.map((p) => _CommandItem(
-      id: p.id,
-      label: p.label,
-      command: p.command,
-      description: p.description,
-      icon: p.icon,
-      color: p.color,
-      category: p.category == PresetCategory.system
-          ? 'SYSTEM'
-          : p.category == PresetCategory.devtool
-              ? 'DEV TOOLS'
-              : 'AI AGENTS',
-    )).toList();
+    final presetItems = AgentPresets.all
+        .map(
+          (p) => _CommandItem(
+            id: p.id,
+            label: p.label,
+            command: p.command,
+            description: p.description,
+            icon: p.icon,
+            color: p.color,
+            category: p.category == PresetCategory.system
+                ? 'SYSTEM'
+                : p.category == PresetCategory.devtool
+                ? 'DEV TOOLS'
+                : 'AI AGENTS',
+          ),
+        )
+        .toList();
 
     final allItems = [...savedItems, ...presetItems];
 
@@ -2450,7 +2512,8 @@ class _QuickCommandPickerSheetState extends State<_QuickCommandPickerSheet> {
                   onChanged: (_) => setState(() {}),
                   style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: 'Search commands or presets (e.g. htop, docker)...',
+                    hintText:
+                        'Search commands or presets (e.g. htop, docker)...',
                     hintStyle: GoogleFonts.inter(
                       fontSize: 12,
                       color: Colors.white.withValues(alpha: 0.35),
@@ -2480,44 +2543,50 @@ class _QuickCommandPickerSheetState extends State<_QuickCommandPickerSheet> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Row(
-                children: ['ALL', 'SAVED', 'SYSTEM', 'DEV TOOLS', 'AI AGENTS'].map((cat) {
-                  final isSelected = _selectedCategory == cat;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: InkWell(
-                      onTap: () => setState(() => _selectedCategory = cat),
-                      borderRadius: BorderRadius.circular(6),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppConstants.accentAmber.withValues(alpha: 0.2)
-                              : Colors.white.withValues(alpha: 0.03),
+                children: ['ALL', 'SAVED', 'SYSTEM', 'DEV TOOLS', 'AI AGENTS']
+                    .map((cat) {
+                      final isSelected = _selectedCategory == cat;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: InkWell(
+                          onTap: () => setState(() => _selectedCategory = cat),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppConstants.accentAmber.withValues(alpha: 0.6)
-                                : Colors.white.withValues(alpha: 0.06),
-                            width: 0.8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppConstants.accentAmber.withValues(
+                                      alpha: 0.2,
+                                    )
+                                  : Colors.white.withValues(alpha: 0.03),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppConstants.accentAmber.withValues(
+                                        alpha: 0.6,
+                                      )
+                                    : Colors.white.withValues(alpha: 0.06),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Text(
+                              cat,
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: isSelected
+                                    ? AppConstants.accentAmber
+                                    : Colors.white.withValues(alpha: 0.5),
+                              ),
+                            ),
                           ),
                         ),
-                        child: Text(
-                          cat,
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            color: isSelected
-                                ? AppConstants.accentAmber
-                                : Colors.white.withValues(alpha: 0.5),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
+                      );
+                    })
+                    .toList(),
               ),
             ),
             const SizedBox(height: 6),
@@ -2608,8 +2677,12 @@ class _QuickCommandPickerSheetState extends State<_QuickCommandPickerSheet> {
                                           vertical: 1,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: item.color.withValues(alpha: 0.12),
-                                          borderRadius: BorderRadius.circular(4),
+                                          color: item.color.withValues(
+                                            alpha: 0.12,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
                                         ),
                                         child: Text(
                                           item.category,
@@ -2627,7 +2700,9 @@ class _QuickCommandPickerSheetState extends State<_QuickCommandPickerSheet> {
                                     item.command,
                                     style: GoogleFonts.jetBrainsMono(
                                       fontSize: 11,
-                                      color: Colors.white.withValues(alpha: 0.5),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.5,
+                                      ),
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -2639,21 +2714,30 @@ class _QuickCommandPickerSheetState extends State<_QuickCommandPickerSheet> {
                             // Paste action
                             IconButton(
                               tooltip: 'Paste into terminal',
-                              icon: const Icon(Icons.content_paste_rounded, size: 16),
+                              icon: const Icon(
+                                Icons.content_paste_rounded,
+                                size: 16,
+                              ),
                               color: AppConstants.accentBlue,
                               style: IconButton.styleFrom(
-                                backgroundColor: AppConstants.accentBlue.withValues(alpha: 0.12),
+                                backgroundColor: AppConstants.accentBlue
+                                    .withValues(alpha: 0.12),
                                 padding: const EdgeInsets.all(8),
                                 minimumSize: Size.zero,
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
-                              onPressed: () => widget.onPasteCommand(item.command),
+                              onPressed: () =>
+                                  widget.onPasteCommand(item.command),
                             ),
                             const SizedBox(width: 6),
                             // Run action
                             ElevatedButton.icon(
-                              onPressed: () => widget.onRunCommand(item.command),
-                              icon: const Icon(Icons.play_arrow_rounded, size: 14),
+                              onPressed: () =>
+                                  widget.onRunCommand(item.command),
+                              icon: const Icon(
+                                Icons.play_arrow_rounded,
+                                size: 14,
+                              ),
                               label: Text(
                                 'RUN',
                                 style: GoogleFonts.jetBrainsMono(
@@ -2709,4 +2793,3 @@ class _CommandItem {
   final Color color;
   final String category;
 }
-

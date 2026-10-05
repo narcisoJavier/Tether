@@ -20,6 +20,27 @@ enum ConnectionMethod {
   tailscale,
 }
 
+String? canonicalizeEnvironment(String? value) {
+  if (value == null) return null;
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return null;
+  switch (trimmed.toLowerCase()) {
+    case 'prod':
+    case 'production':
+      return 'Prod';
+    case 'stg':
+    case 'stage':
+    case 'staging':
+      return 'Staging';
+    case 'homelab':
+    case 'home lab':
+    case 'home':
+      return 'HomeLab';
+    default:
+      return trimmed;
+  }
+}
+
 /// A saved SSH connection profile.
 ///
 /// Serialized by [ConnectionProfileAdapter] (manual Hive TypeAdapter).
@@ -57,10 +78,11 @@ class ConnectionProfile extends HiveObject {
     this.lastConnectionSuccess = false,
     this.connectionMethod = ConnectionMethod.direct,
     List<TunnelConfig>? tunnels,
-    this.environment,
+    String? environment,
   }) : createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? DateTime.now(),
-       tunnels = tunnels ?? [];
+       tunnels = tunnels ?? [],
+       environment = canonicalizeEnvironment(environment);
 
   ConnectionProfile copyWith({
     String? label,
@@ -96,7 +118,7 @@ class ConnectionProfile extends HiveObject {
       tunnels: tunnels ?? this.tunnels,
       environment: identical(environment, _copyWithUnset)
           ? this.environment
-          : environment as String?,
+          : canonicalizeEnvironment(environment as String?),
     );
   }
 
@@ -109,7 +131,7 @@ class ConnectionProfile extends HiveObject {
   /// Effective environment tag with fallback inference.
   String get effectiveEnvironment {
     if (environment != null && environment!.isNotEmpty) {
-      return environment!;
+      return canonicalizeEnvironment(environment)!;
     }
     final l = label.toLowerCase();
     final h = host.toLowerCase();

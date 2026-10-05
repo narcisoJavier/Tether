@@ -1,7 +1,19 @@
-# Tether v0.6.1 — Pocket SSH & Mesh Terminal (Apple TUI 2.0)
+# Tether v0.6.2 — Pocket SSH & Mesh Terminal (Apple TUI 2.0)
 
-> **LAST UPDATED**: 2026-09-04T06:35:00Z
-> **STATUS**: Production release v0.6.1 published with cyber ASCII boot sequence, Android Option 3 adaptive icons, settings cockpit, streamlined codebase, and updated documentation. Static analysis clean, all 98 tests passing.
+> **LAST UPDATED**: 2026-10-05T00:00:00Z
+> **STATUS**: v0.6.2 release candidate. Static analysis, full tests, and local release artifact gates are clean. Physical-device and store validation remain.
+
+## 🔧 Latest Hardening Pass (2026-10-05)
+
+- Added fail-closed native hook validation and an Android artifact verifier with negative-path self-tests.
+- Added an Android release-configuration preflight with a tampered-backup negative test.
+- Added Windows Go-cache/compiler handling and Android 16 KB page-size linker flags to the native hook.
+- Added SSH host-key trust records, session-scoped SSH ownership, SFTP write truncation, SOCKS5 forwarding, streaming terminal I/O, and canonical environment tags.
+- Added fail-closed device-authentication locking with lifecycle privacy cover, encrypted password-protected backups, reduced-motion onboarding/accessibility support, truthful capability/update copy, and privacy/data-safety documentation.
+- `flutter analyze`, `dart analyze lib test`, and `dart analyze packages/tailscale/hook packages/tailscale/test/hook` pass with no issues; both release self-tests pass.
+- Full Flutter tests (168) and native-hook tests (25) pass. A signed debug APK, signed release APK, release AAB, and bundletool universal APK set pass the native artifact gate.
+- `go test ./...` passes for the embedded Go package on the host toolchain.
+- Physical/device runtime checks and store/pre-launch review remain pending.
 
 ## ✅ Completed Accomplishments
 
@@ -126,7 +138,16 @@
 
 ## 🧪 Verification Status
 
-- ✅ `dart analyze lib/ test/` — **No issues found! (0 errors, 0 warnings, 0 lints)**
-- ✅ `flutter test` — **98/98 tests passed cleanly**
-- ✅ `flutter build apk --debug` — **Built in 16.7s**
-- ✅ Android adaptive icons & Material You Themed Icons verified live on device launcher
+- ✅ `dart analyze lib test` — no issues found.
+- ✅ `flutter analyze` — no issues found.
+- ✅ `flutter test` — 168 tests passed.
+- ✅ `packages/tailscale` hook tests — 25 tests passed.
+- ✅ `packages/tailscale/go` `go test ./...` — passed.
+- ✅ `dart analyze packages/tailscale/hook packages/tailscale/test/hook` — no issues found.
+- ✅ Android artifact verifier negative-path self-test — all cases passed.
+- ✅ Android release configuration preflight self-test — all checks passed.
+- ✅ Signed debug APK and release APK builds — completed.
+- ✅ Release AAB plus bundletool universal APK relationship — completed.
+- ✅ Native ELF exports/alignment and ZIP alignment on APK/AAB/APKS — passed for all three ABIs.
+- ✅ 16 KB emulator smoke — release APK installed and launched on `Pixel_6a` with `PAGE_SIZE=16384`; no fatal app crash observed.
+- ⏳ Tailscale ARM64 runtime, biometric lifecycle, and Play pre-launch checks — require an ARM64 device/store inputs.

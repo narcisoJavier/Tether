@@ -40,6 +40,7 @@ type TcpFdConn struct {
 	LocalPort     int
 	RemoteAddress string
 	RemotePort    int
+	Identity      *nodeIdentity
 }
 
 type TcpFdListener struct {

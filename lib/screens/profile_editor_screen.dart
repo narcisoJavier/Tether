@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/connection_profile.dart';
+import '../services/host_key_verifier.dart';
 import '../services/key_service.dart';
 import '../services/profile_storage_service.dart';
 import '../services/ssh_service.dart';
@@ -13,6 +14,7 @@ import '../services/tailscale_provider.dart';
 import '../services/tailscale_ssh_socket.dart';
 import '../utils/constants.dart';
 import '../widgets/gradient_scaffold.dart';
+import '../widgets/host_key_trust_dialog.dart';
 
 /// Screen for creating or editing a connection profile matching the HTML design spec.
 class ProfileEditorScreen extends ConsumerStatefulWidget {
@@ -41,7 +43,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
   bool _obscurePassword = true;
   final _authKeyController = TextEditingController();
   ConnectionMethod _connectionMethod = ConnectionMethod.direct;
-  String _environment = 'PROD';
+  String _environment = 'Prod';
 
   bool get _isEditing => widget.profileId != null;
   ConnectionProfile? _existingProfile;
@@ -72,7 +74,9 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
       _selectedKeyId = _existingProfile!.keyId;
       _colorIndex = _existingProfile!.colorIndex;
       _connectionMethod = _existingProfile!.connectionMethod;
-      _environment = _existingProfile!.effectiveEnvironment.toUpperCase();
+      _environment =
+          canonicalizeEnvironment(_existingProfile!.environment) ??
+          _existingProfile!.effectiveEnvironment;
     });
 
     final stored = await ref
@@ -395,7 +399,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
                         Wrap(
                           spacing: 6,
                           runSpacing: 8,
-                          children: ['PROD', 'STG', 'DEV'].map((env) {
+                          children: ['Prod', 'Staging', 'HomeLab'].map((env) {
                             final isSel = _environment == env;
                             return GestureDetector(
                               onTap: () => setState(() => _environment = env),
@@ -460,37 +464,40 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
                         const SizedBox(height: 14),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: List.generate(ProfileColors.palette.length, (idx) {
-                            final c = ProfileColors.palette[idx];
-                            final isSel = _colorIndex == idx;
-                            return GestureDetector(
-                              onTap: () => setState(() => _colorIndex = idx),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                width: 24,
-                                height: 24,
-                                decoration: BoxDecoration(
-                                  color: c,
-                                  shape: BoxShape.circle,
-                                  boxShadow: isSel
-                                      ? [
-                                          BoxShadow(
-                                            color: c.withValues(alpha: 0.5),
-                                            blurRadius: 8,
-                                            spreadRadius: 2,
-                                          ),
-                                        ]
-                                      : [],
-                                  border: isSel
-                                      ? Border.all(
-                                          color: Colors.white,
-                                          width: 2,
-                                        )
-                                      : null,
+                          children: List.generate(
+                            ProfileColors.palette.length,
+                            (idx) {
+                              final c = ProfileColors.palette[idx];
+                              final isSel = _colorIndex == idx;
+                              return GestureDetector(
+                                onTap: () => setState(() => _colorIndex = idx),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  width: 24,
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                    color: c,
+                                    shape: BoxShape.circle,
+                                    boxShadow: isSel
+                                        ? [
+                                            BoxShadow(
+                                              color: c.withValues(alpha: 0.5),
+                                              blurRadius: 8,
+                                              spreadRadius: 2,
+                                            ),
+                                          ]
+                                        : [],
+                                    border: isSel
+                                        ? Border.all(
+                                            color: Colors.white,
+                                            width: 2,
+                                          )
+                                        : null,
+                                  ),
                                 ),
-                              ),
-                            );
-                          }),
+                              );
+                            },
+                          ),
                         ),
                       ],
                     ),
@@ -764,7 +771,9 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isTesting = true);
-    final testService = SshService();
+    final testService = SshService(
+      hostKeyVerifier: ref.read(hostKeyVerifierProvider),
+    );
 
     try {
       final profile = _buildProfile();
@@ -803,6 +812,16 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
             ? passwordToUse
             : null,
         socket: sock,
+        onHostKeyDecision: (challenge) {
+          if (!mounted) {
+            return Future.value(HostKeyTrustDecision.reject);
+          }
+          return showHostKeyTrustDialog(
+            context: context,
+            challenge: challenge,
+            timeout: ref.read(hostKeyVerifierProvider).decisionTimeout,
+          );
+        },
       );
 
       if (mounted) {
@@ -826,6 +845,17 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
         );
       }
     } catch (e) {
+      var displayError = e.toString();
+      if (e is HostKeyChangedException && mounted) {
+        final replacement = await showHostKeyChangedDialog(
+          context: context,
+          change: e,
+          verifier: ref.read(hostKeyVerifierProvider),
+        );
+        if (replacement == HostKeyReplacementResult.replaced) {
+          displayError = 'Trusted host key replaced. Test again to reconnect.';
+        }
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -836,7 +866,7 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    e.toString(),
+                    displayError,
                     style: GoogleFonts.jetBrainsMono(color: Colors.white),
                   ),
                 ),

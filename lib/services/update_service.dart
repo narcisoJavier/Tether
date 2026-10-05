@@ -20,6 +20,10 @@ class UpdateInfo {
     required this.releaseNotes,
   });
 
+  /// Whether the release has a URL that can safely be opened externally.
+  bool get hasSafeDownloadUrl =>
+      UpdateService.safeExternalUri(downloadUrl) != null;
+
   Map<String, dynamic> toJson() => {
     'latestVersion': latestVersion,
     'downloadUrl': downloadUrl,
@@ -42,6 +46,17 @@ class UpdateService {
 
   /// 24-hour cache duration to prevent exceeding GitHub API rate limits.
   static const Duration _cacheDuration = Duration(hours: 24);
+
+  /// Parses only HTTPS URLs for externally handled release downloads.
+  static Uri? safeExternalUri(String value) {
+    final uri = Uri.tryParse(value.trim());
+    if (uri == null ||
+        uri.scheme.toLowerCase() != 'https' ||
+        uri.host.isEmpty) {
+      return null;
+    }
+    return uri;
+  }
 
   /// Returns [UpdateInfo] when a newer release is available, or `null` if the
   /// app is up-to-date, the API fails, or the user is offline.
@@ -142,17 +157,26 @@ class UpdateService {
       String downloadUrl = '';
       if (assets != null) {
         for (final asset in assets) {
-          final name = (asset['name'] as String? ?? '').toLowerCase();
-          if (name.endsWith('.apk')) {
-            downloadUrl = asset['browser_download_url'] as String? ?? '';
+          if (asset is! Map) continue;
+          final name = asset['name'] is String
+              ? (asset['name'] as String).toLowerCase()
+              : '';
+          final candidate = asset['browser_download_url'];
+          if (name.endsWith('.apk') &&
+              candidate is String &&
+              safeExternalUri(candidate) != null) {
+            downloadUrl = candidate;
             break;
           }
         }
       }
 
-      // Fall back to html_url if no APK asset is found.
+      // Fall back to the release page when no safe APK asset is available.
       if (downloadUrl.isEmpty) {
-        downloadUrl = body['html_url'] as String? ?? '';
+        final releaseUrl = body['html_url'];
+        if (releaseUrl is String && safeExternalUri(releaseUrl) != null) {
+          downloadUrl = releaseUrl;
+        }
       }
 
       final updateInfo = UpdateInfo(

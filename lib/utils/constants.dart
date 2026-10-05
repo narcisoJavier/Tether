@@ -11,6 +11,7 @@ class AppConstants {
   static const String profilesBox = 'connection_profiles';
   static const String keysBox = 'ssh_keys';
   static const String commandsBox = 'quick_commands';
+  static const String hostKeysBox = 'ssh_host_keys';
 
   // Secure storage keys prefix
   static const String secureStoragePrefix = 'tether_key_';

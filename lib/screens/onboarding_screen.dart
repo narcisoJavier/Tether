@@ -41,6 +41,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
   bool _cursorBlink = true;
   Timer? _cursorTimer;
+  bool _reducedMotion = false;
+  bool _effectsInitialized = false;
 
   @override
   void initState() {
@@ -50,28 +52,30 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     _floatCtrl = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 3),
-    )..repeat(reverse: true);
+    );
 
     // Scanning radar / pulse for security and network
     _scanCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2000),
-    )..repeat();
+    );
 
     // Subtle glow pulse
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
+    );
 
     // Blinking cursor
     _cursorTimer = Timer.periodic(const Duration(milliseconds: 450), (_) {
-      if (mounted) setState(() => _cursorBlink = !_cursorBlink);
+      if (mounted && !_reducedMotion) {
+        setState(() => _cursorBlink = !_cursorBlink);
+      }
     });
 
     // Autonomous Slide 1: Terminal streaming lines
     _terminalLineTimer = Timer.periodic(const Duration(milliseconds: 900), (_) {
-      if (mounted) {
+      if (mounted && !_reducedMotion) {
         setState(() {
           _terminalLineCount = (_terminalLineCount % 5) + 1;
         });
@@ -80,7 +84,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
     // Autonomous Slide 2: Mesh node rotation
     _meshNodeTimer = Timer.periodic(const Duration(milliseconds: 1800), (_) {
-      if (mounted) {
+      if (mounted && !_reducedMotion) {
         setState(() {
           _activeMeshNode = (_activeMeshNode + 1) % 3;
         });
@@ -88,8 +92,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     });
 
     // Autonomous Slide 3: Security scan sequence
-    _securityScanTimer = Timer.periodic(const Duration(milliseconds: 2400), (_) {
-      if (mounted) {
+    _securityScanTimer = Timer.periodic(const Duration(milliseconds: 2400), (
+      _,
+    ) {
+      if (mounted && !_reducedMotion) {
         setState(() {
           _securityUnlocked = !_securityUnlocked;
         });
@@ -97,13 +103,33 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     });
 
     // Autonomous Slide 4: Command deck cycling
-    _commandCycleTimer = Timer.periodic(const Duration(milliseconds: 1600), (_) {
-      if (mounted) {
+    _commandCycleTimer = Timer.periodic(const Duration(milliseconds: 1600), (
+      _,
+    ) {
+      if (mounted && !_reducedMotion) {
         setState(() {
           _activeCommandIndex = (_activeCommandIndex + 1) % 4;
         });
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reducedMotion = MediaQuery.disableAnimationsOf(context);
+    if (_effectsInitialized && reducedMotion == _reducedMotion) return;
+    _effectsInitialized = true;
+    _reducedMotion = reducedMotion;
+    if (reducedMotion) {
+      _floatCtrl.stop();
+      _scanCtrl.stop();
+      _pulseCtrl.stop();
+    } else {
+      _floatCtrl.repeat(reverse: true);
+      _scanCtrl.repeat();
+      _pulseCtrl.repeat(reverse: true);
+    }
   }
 
   @override
@@ -130,7 +156,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   void _nextPage() {
     if (_currentPage < _totalPages - 1) {
       _pageController.nextPage(
-        duration: const Duration(milliseconds: 320),
+        duration: _reducedMotion
+            ? Duration.zero
+            : const Duration(milliseconds: 320),
         curve: Curves.easeOutCubic,
       );
     } else {
@@ -147,47 +175,67 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           children: [
             _buildTopBar(),
             Expanded(
-              child: PageView(
-                controller: _pageController,
-                onPageChanged: (index) => setState(() => _currentPage = index),
-                children: [
-                  _buildSlide(
-                    badge: 'CORE ENGINE',
-                    badgeColor: AppConstants.primaryGreen,
-                    title: 'Pocket SSH & Mesh Terminal',
-                    subtitle:
-                        'Hardware-accelerated VT100 terminal with embedded Tailscale WireGuard mesh networking in a pure Dart/Go client.',
-                    tags: ['⚡ Pure Dart/Go', '🌐 Tailscale FFI', '🔒 Zero Cloud'],
-                    card: _buildAnimatedTerminalCard(),
-                  ),
-                  _buildSlide(
-                    badge: 'NETWORK TOPOLOGY',
-                    badgeColor: AppConstants.accentBlue,
-                    title: 'Direct SSH & Tailnet Mesh',
-                    subtitle:
-                        'Connect directly over IPv4/IPv6 or route seamlessly through your private WireGuard tailnet with SFTP and port tunnels.',
-                    tags: ['🌐 WireGuard Mesh', '📁 SFTP Browser', '🔀 TCP Tunnels'],
-                    card: _buildAnimatedMeshCard(),
-                  ),
-                  _buildSlide(
-                    badge: 'HARDWARE SECURITY',
-                    badgeColor: AppConstants.primaryGreen,
-                    title: 'Hardware-Encrypted Enclave',
-                    subtitle:
-                        'Ed25519 and RSA keys are generated on-device and sealed in Android Hardware Keystore with biometric authentication.',
-                    tags: ['🔑 Ed25519 Keys', '🛡️ Hardware Vault', '👆 Biometric Gate'],
-                    card: _buildAnimatedSecurityCard(),
-                  ),
-                  _buildSlide(
-                    badge: 'WORKFLOW DECK',
-                    badgeColor: AppConstants.accentAmber,
-                    title: 'Command Deck Automation',
-                    subtitle:
-                        'Save reusable scripts, agent harnesses, and DevOps snippets. Execute with one tap directly into active terminal tabs.',
-                    tags: ['⚡ 1-Tap Run', '📑 Multi-Tab Sync', '⌨️ Touch Bar'],
-                    card: _buildAnimatedCommandCard(),
-                  ),
-                ],
+              child: TickerMode(
+                enabled: !_reducedMotion,
+                child: PageView(
+                  controller: _pageController,
+                  onPageChanged: (index) =>
+                      setState(() => _currentPage = index),
+                  children: [
+                    _buildSlide(
+                      badge: 'CORE ENGINE',
+                      badgeColor: AppConstants.primaryGreen,
+                      title: 'Pocket SSH & Mesh Terminal',
+                      subtitle:
+                          'Hardware-accelerated VT100 terminal with embedded Tailscale WireGuard mesh networking in a pure Dart/Go client.',
+                      tags: [
+                        '⚡ Pure Dart/Go',
+                        '🌐 Tailscale FFI',
+                        '🔒 Zero Cloud',
+                      ],
+                      card: _buildAnimatedTerminalCard(),
+                    ),
+                    _buildSlide(
+                      badge: 'NETWORK TOPOLOGY',
+                      badgeColor: AppConstants.accentBlue,
+                      title: 'Direct SSH & Tailnet Mesh',
+                      subtitle:
+                          'Connect directly over IPv4/IPv6 or route seamlessly through your private WireGuard tailnet with SFTP and port tunnels.',
+                      tags: [
+                        '🌐 WireGuard Mesh',
+                        '📁 SFTP Browser',
+                        '🔀 TCP Tunnels',
+                      ],
+                      card: _buildAnimatedMeshCard(),
+                    ),
+                    _buildSlide(
+                      badge: 'HARDWARE SECURITY',
+                      badgeColor: AppConstants.primaryGreen,
+                      title: 'Device-Protected Key Vault',
+                      subtitle:
+                          'Ed25519 and RSA keys are generated on-device and stored with Android secure storage. Optional device authentication gates app access.',
+                      tags: [
+                        '🔑 Ed25519 Keys',
+                        '🛡️ Secure Storage',
+                        '👆 Device Lock',
+                      ],
+                      card: _buildAnimatedSecurityCard(),
+                    ),
+                    _buildSlide(
+                      badge: 'WORKFLOW DECK',
+                      badgeColor: AppConstants.accentAmber,
+                      title: 'Command Deck Automation',
+                      subtitle:
+                          'Save reusable scripts, agent harnesses, and DevOps snippets. Execute with one tap directly into active terminal tabs.',
+                      tags: [
+                        '⚡ 1-Tap Run',
+                        '📑 Multi-Tab Sync',
+                        '⌨️ Touch Bar',
+                      ],
+                      card: _buildAnimatedCommandCard(),
+                    ),
+                  ],
+                ),
               ),
             ),
             _buildBottomControls(),
@@ -218,15 +266,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                     width: 0.8,
                   ),
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(5),
-                  child: Image.asset(
-                    'assets/logo.png',
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const Icon(
-                      Icons.terminal_rounded,
-                      size: 14,
-                      color: AppConstants.primaryGreen,
+                child: Semantics(
+                  image: true,
+                  label: 'Tether logo',
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(5),
+                    child: Image.asset(
+                      'assets/logo.png',
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const Icon(
+                        Icons.terminal_rounded,
+                        size: 14,
+                        color: AppConstants.primaryGreen,
+                      ),
                     ),
                   ),
                 ),
@@ -248,15 +300,22 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
               onPressed: _skip,
               style: TextButton.styleFrom(
                 foregroundColor: Colors.white.withValues(alpha: 0.5),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: Text(
-                'Skip',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+              child: Semantics(
+                button: true,
+                label: 'Skip onboarding',
+                child: Text(
+                  'Skip',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -292,83 +351,92 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                   child: child,
                 );
               },
-              child: Center(
-                child: card,
-              ),
+              child: Center(child: card),
             ),
           ),
           const SizedBox(height: 14),
           // Lower Typography Section (Takes ~45% of height)
           Expanded(
             flex: 8,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: badgeColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: badgeColor.withValues(alpha: 0.3),
-                      width: 0.8,
+            child: SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: badgeColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: badgeColor.withValues(alpha: 0.3),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Text(
+                      badge,
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: badgeColor,
+                        letterSpacing: 1.0,
+                      ),
                     ),
                   ),
-                  child: Text(
-                    badge,
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 9,
+                  const SizedBox(height: 10),
+                  Text(
+                    title,
+                    style: GoogleFonts.inter(
+                      fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: badgeColor,
-                      letterSpacing: 1.0,
+                      color: Colors.white,
+                      letterSpacing: -0.4,
+                      height: 1.2,
                     ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: -0.4,
-                    height: 1.2,
+                  const SizedBox(height: 8),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: Colors.white.withValues(alpha: 0.58),
+                      height: 1.45,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: Colors.white.withValues(alpha: 0.58),
-                    height: 1.45,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: tags.map((tag) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.04),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
-                      ),
-                      child: Text(
-                        tag,
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white.withValues(alpha: 0.65),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: tags.map((tag) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
                         ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.07),
+                          ),
+                        ),
+                        child: Text(
+                          tag,
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white.withValues(alpha: 0.65),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -384,7 +452,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       ('Mesh Core', 'Tailscale Go FFI (WireGuard)'),
       ('VT100 Matrix', 'xterm.dart 60 FPS Accelerated'),
       ('Session Sync', 'Stateful persistent background tabs'),
-      ('Telemetry', '100% Offline & Local Hive DB'),
+      ('Telemetry', 'Connection health • local only'),
     ];
 
     return Container(
@@ -418,18 +486,41 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.04),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(15),
+              ),
               border: Border(
                 bottom: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
               ),
             ),
             child: Row(
               children: [
-                Container(width: 9, height: 9, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFFF5F56))),
+                Container(
+                  width: 9,
+                  height: 9,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFFFF5F56),
+                  ),
+                ),
                 const SizedBox(width: 6),
-                Container(width: 9, height: 9, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFFFBD2E))),
+                Container(
+                  width: 9,
+                  height: 9,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFFFFBD2E),
+                  ),
+                ),
                 const SizedBox(width: 6),
-                Container(width: 9, height: 9, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF27C93F))),
+                Container(
+                  width: 9,
+                  height: 9,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFF27C93F),
+                  ),
+                ),
                 const SizedBox(width: 12),
                 Text(
                   'tether@cluster: ~ (pty0)',
@@ -441,7 +532,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppConstants.primaryGreen.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
@@ -512,7 +606,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                             '• ${line.$1}: ',
                             style: GoogleFonts.jetBrainsMono(
                               fontSize: 10,
-                              color: isVisible ? Colors.white.withValues(alpha: 0.45) : Colors.white10,
+                              color: isVisible
+                                  ? Colors.white.withValues(alpha: 0.45)
+                                  : Colors.white10,
                             ),
                           ),
                           Expanded(
@@ -521,7 +617,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                               style: GoogleFonts.jetBrainsMono(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
-                                color: isVisible ? Colors.white.withValues(alpha: 0.9) : Colors.white12,
+                                color: isVisible
+                                    ? Colors.white.withValues(alpha: 0.9)
+                                    : Colors.white12,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -592,10 +690,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
             margin: EdgeInsets.only(bottom: i == nodes.length - 1 ? 0 : 8),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isActive ? n.color.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.02),
+              color: isActive
+                  ? n.color.withValues(alpha: 0.12)
+                  : Colors.white.withValues(alpha: 0.02),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isActive ? n.color.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.05),
+                color: isActive
+                    ? n.color.withValues(alpha: 0.6)
+                    : Colors.white.withValues(alpha: 0.05),
                 width: isActive ? 1.4 : 1.0,
               ),
               boxShadow: isActive
@@ -615,7 +717,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: isActive ? n.color.withValues(alpha: 0.25) : n.color.withValues(alpha: 0.1),
+                    color: isActive
+                        ? n.color.withValues(alpha: 0.25)
+                        : n.color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(9),
                   ),
                   child: Icon(n.icon, size: 18, color: n.color),
@@ -637,7 +741,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                           ),
                           const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 1,
+                            ),
                             decoration: BoxDecoration(
                               color: n.color.withValues(alpha: 0.18),
                               borderRadius: BorderRadius.circular(4),
@@ -672,7 +779,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                     shape: BoxShape.circle,
                     color: isActive ? n.color : Colors.transparent,
                     border: Border.all(
-                      color: isActive ? n.color : Colors.white.withValues(alpha: 0.25),
+                      color: isActive
+                          ? n.color
+                          : Colors.white.withValues(alpha: 0.25),
                       width: 1.5,
                     ),
                   ),
@@ -780,7 +889,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                   style: GoogleFonts.jetBrainsMono(
                     fontSize: 8,
                     fontWeight: FontWeight.w800,
-                    color: _securityUnlocked ? AppConstants.primaryGreen : Colors.white.withValues(alpha: 0.8),
+                    color: _securityUnlocked
+                        ? AppConstants.primaryGreen
+                        : Colors.white.withValues(alpha: 0.8),
                   ),
                 ),
               ),
@@ -813,7 +924,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                       style: GoogleFonts.jetBrainsMono(
                         fontSize: 9,
                         fontWeight: FontWeight.w700,
-                        color: AppConstants.primaryGreen.withValues(alpha: 0.85),
+                        color: AppConstants.primaryGreen.withValues(
+                          alpha: 0.85,
+                        ),
                       ),
                     ),
                     const Spacer(),
@@ -847,11 +960,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  _securityUnlocked ? 'Biometric verification active' : 'Scanning biometric gate...',
+                  _securityUnlocked
+                      ? 'Device authentication ready'
+                      : 'Checking device lock...',
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: _securityUnlocked ? Colors.white : Colors.white.withValues(alpha: 0.6),
+                    color: _securityUnlocked
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.6),
                   ),
                 ),
               ),
@@ -865,11 +982,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  _securityUnlocked ? 'ENCLAVE READY' : 'SCANNING',
+                  _securityUnlocked ? 'SECURE STORAGE READY' : 'CHECKING',
                   style: GoogleFonts.jetBrainsMono(
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
-                    color: _securityUnlocked ? AppConstants.primaryGreen : Colors.white.withValues(alpha: 0.5),
+                    color: _securityUnlocked
+                        ? AppConstants.primaryGreen
+                        : Colors.white.withValues(alpha: 0.5),
                   ),
                 ),
               ),
@@ -947,10 +1066,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                 duration: const Duration(milliseconds: 300),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: isCurrent ? cmd.color.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.02),
+                  color: isCurrent
+                      ? cmd.color.withValues(alpha: 0.15)
+                      : Colors.white.withValues(alpha: 0.02),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: isCurrent ? cmd.color.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.06),
+                    color: isCurrent
+                        ? cmd.color.withValues(alpha: 0.6)
+                        : Colors.white.withValues(alpha: 0.06),
                     width: isCurrent ? 1.4 : 1.0,
                   ),
                   boxShadow: isCurrent
@@ -980,7 +1103,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                         Icon(
                           Icons.bolt_rounded,
                           size: 14,
-                          color: isCurrent ? cmd.color : Colors.white.withValues(alpha: 0.2),
+                          color: isCurrent
+                              ? cmd.color
+                              : Colors.white.withValues(alpha: 0.2),
                         ),
                       ],
                     ),
@@ -1042,7 +1167,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
                   decoration: BoxDecoration(
                     color: activeCmd.color.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(3),
@@ -1108,55 +1236,69 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 // Animated Pill Dots
-                Row(
-                  children: List.generate(_totalPages, (i) {
-                    final isActive = i == _currentPage;
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOut,
-                      margin: const EdgeInsets.only(right: 6),
-                      width: isActive ? 22 : 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: isActive ? AppConstants.primaryGreen : Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(3),
-                        boxShadow: isActive
-                            ? [
-                                BoxShadow(
-                                  color: AppConstants.primaryGreen.withValues(alpha: 0.4),
-                                  blurRadius: 6,
-                                ),
-                              ]
-                            : null,
-                      ),
-                    );
-                  }),
+                Semantics(
+                  liveRegion: true,
+                  label: 'Page ${_currentPage + 1} of $_totalPages',
+                  child: Row(
+                    children: List.generate(_totalPages, (i) {
+                      final isActive = i == _currentPage;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOut,
+                        margin: const EdgeInsets.only(right: 6),
+                        width: isActive ? 22 : 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? AppConstants.primaryGreen
+                              : Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(3),
+                          boxShadow: isActive
+                              ? [
+                                  BoxShadow(
+                                    color: AppConstants.primaryGreen.withValues(
+                                      alpha: 0.4,
+                                    ),
+                                    blurRadius: 6,
+                                  ),
+                                ]
+                              : null,
+                        ),
+                      );
+                    }),
+                  ),
                 ),
                 // Circular Next Arrow Button
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppConstants.primaryGreen,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppConstants.primaryGreen.withValues(alpha: 0.3),
-                        blurRadius: 14,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _nextPage,
-                      customBorder: const CircleBorder(),
-                      child: const Center(
-                        child: Icon(
-                          Icons.arrow_forward_rounded,
-                          color: Colors.black,
-                          size: 22,
+                Semantics(
+                  button: true,
+                  label: 'Next onboarding page',
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppConstants.primaryGreen,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppConstants.primaryGreen.withValues(
+                            alpha: 0.3,
+                          ),
+                          blurRadius: 14,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _nextPage,
+                        customBorder: const CircleBorder(),
+                        child: const Center(
+                          child: Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.black,
+                            size: 22,
+                          ),
                         ),
                       ),
                     ),

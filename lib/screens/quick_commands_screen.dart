@@ -11,18 +11,18 @@ import 'package:uuid/uuid.dart';
 import '../models/connection_profile.dart';
 import '../models/quick_command.dart';
 import '../models/terminal_tab.dart';
-import '../services/key_service.dart';
+import '../services/host_key_verifier.dart';
 import '../services/pending_quick_command_provider.dart';
 import '../services/profile_storage_service.dart';
 import '../services/quick_command_layout_service.dart';
-import '../services/ssh_service.dart';
+import '../utils/terminal_io.dart';
+import '../services/ssh_connection_factory.dart';
 import '../services/tab_manager.dart';
-import '../services/tailscale_provider.dart';
-import '../services/tailscale_ssh_socket.dart';
 import '../services/terminal_tab_request_provider.dart';
 import '../utils/agent_presets.dart';
 import '../utils/constants.dart';
 import '../widgets/agent_brand_mark.dart';
+import '../widgets/host_key_trust_dialog.dart';
 
 /// Screen for managing and executing quick commands.
 class QuickCommandsScreen extends ConsumerStatefulWidget {
@@ -1269,7 +1269,7 @@ class _QuickCommandsScreenState extends ConsumerState<QuickCommandsScreen> {
     if (choice == 'new_tab') {
       ref.read(pendingTerminalTabProvider.notifier).state = TerminalTabRequest(
         profileId: profile.id,
-        initialCommand: '${cmd.command}\n',
+        initialCommand: normalizePtyCommand(cmd.command),
       );
       if (mounted) context.go('/terminal');
       return;
@@ -1277,7 +1277,7 @@ class _QuickCommandsScreenState extends ConsumerState<QuickCommandsScreen> {
 
     ref.read(pendingQuickCommandProvider.notifier).state = PendingTabCommand(
       tabId: choice,
-      command: '${cmd.command}\n',
+      command: normalizePtyCommand(cmd.command),
     );
     if (mounted) context.go('/terminal');
   }
@@ -1476,6 +1476,7 @@ class _QuickCommandsScreenState extends ConsumerState<QuickCommandsScreen> {
         ? AgentPresets.byId(cmd.presetId!)
         : null;
     final accent = preset?.color ?? AppConstants.primaryGreen;
+    final output = _runCommand(cmd, profile);
 
     await showModalBottomSheet(
       context: context,
@@ -1561,7 +1562,7 @@ class _QuickCommandsScreenState extends ConsumerState<QuickCommandsScreen> {
                     // Output area
                     Expanded(
                       child: FutureBuilder<String>(
-                        future: _runCommand(cmd, profile),
+                        future: output,
                         builder: (context, snapshot) {
                           if (snapshot.connectionState ==
                               ConnectionState.waiting) {
@@ -1623,48 +1624,37 @@ class _QuickCommandsScreenState extends ConsumerState<QuickCommandsScreen> {
     QuickCommand cmd,
     ConnectionProfile profile,
   ) async {
-    final sshService = ref.read(sshServiceProvider(profile.id));
-
-    TailscaleSSHSocket? sock;
-    String? privateKey;
-    if (profile.keyId != null) {
-      privateKey = await ref
-          .read(keyServiceProvider)
-          .getPrivateKey(profile.keyId!);
-    }
-
     try {
-      if (profile.connectionMethod == ConnectionMethod.tailscale) {
-        var ts = ref.read(tailscaleServiceProvider);
-        var conn = await ts.dial(
-          profile.host,
-          profile.port,
-          timeout: const Duration(seconds: 10),
-        );
-        sock = TailscaleSSHSocket(conn);
-      } else {
-        sock = null;
-      }
-      // Retrieve password from secure storage (falls back to legacy field).
-      final securePassword = await ref
-          .read(profileStorageProvider)
-          .getPassword(profile.id);
-      final effectivePassword = securePassword ?? profile.password;
-
-      await sshService.connect(
-        profile: profile,
-        privateKey: privateKey,
-        password: effectivePassword,
-        socket: sock,
-      );
-      final output = await sshService.executeCommand(cmd.command);
-      await sshService.disconnect();
-      return output;
+      return await ref
+          .read(sshConnectionFactoryProvider)
+          .executeOnce(
+            profile: profile,
+            command: cmd.command,
+            onHostKeyDecision: (challenge) {
+              if (!mounted) {
+                return Future.value(HostKeyTrustDecision.reject);
+              }
+              return showHostKeyTrustDialog(
+                context: context,
+                challenge: challenge,
+                timeout: ref.read(hostKeyVerifierProvider).decisionTimeout,
+              );
+            },
+          );
     } catch (e) {
-      try {
-        await sshService.disconnect();
-      } catch (_) {}
-      return 'Error: $e';
+      var displayError = e.toString();
+      if (e is HostKeyChangedException && mounted) {
+        final replacement = await showHostKeyChangedDialog(
+          context: context,
+          change: e,
+          verifier: ref.read(hostKeyVerifierProvider),
+        );
+        if (replacement == HostKeyReplacementResult.replaced) {
+          displayError =
+              'Trusted host key replaced. Run the command again to reconnect.';
+        }
+      }
+      return 'Error: $displayError';
     }
   }
 

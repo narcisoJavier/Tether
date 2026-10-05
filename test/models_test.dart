@@ -6,6 +6,20 @@ import 'package:tether/models/tunnel_config.dart';
 
 void main() {
   group('ConnectionProfile', () {
+    test(
+      'canonicalizes known environment spellings and preserves unknowns',
+      () {
+        expect(canonicalizeEnvironment('PROD'), 'Prod');
+        expect(canonicalizeEnvironment('production'), 'Prod');
+        expect(canonicalizeEnvironment('STG'), 'Staging');
+        expect(canonicalizeEnvironment('STAGING'), 'Staging');
+        expect(canonicalizeEnvironment('HOMELAB'), 'HomeLab');
+        expect(canonicalizeEnvironment('home lab'), 'HomeLab');
+        expect(canonicalizeEnvironment('custom-legacy'), 'custom-legacy');
+        expect(canonicalizeEnvironment(' '), isNull);
+      },
+    );
+
     ConnectionProfile makeProfile() => ConnectionProfile(
       id: 'p1',
       label: 'My PC',

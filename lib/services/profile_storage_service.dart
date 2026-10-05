@@ -34,6 +34,7 @@ class ProfileStorageService {
 
   /// Save a new or updated connection profile.
   Future<void> saveProfile(ConnectionProfile profile) async {
+    profile.environment = canonicalizeEnvironment(profile.environment);
     await _profilesBox.put(profile.id, profile);
   }
 

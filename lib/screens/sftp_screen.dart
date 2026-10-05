@@ -9,16 +9,14 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../models/connection_profile.dart';
-import '../services/key_service.dart';
+import '../services/host_key_verifier.dart';
 import '../services/profile_storage_service.dart';
 import '../services/sftp_service.dart';
 import '../services/ssh_service.dart';
+import '../services/ssh_connection_factory.dart';
 import '../services/terminal_tab_request_provider.dart';
-import '../services/tailscale_provider.dart';
-import '../services/tailscale_ssh_socket.dart';
 import '../utils/constants.dart';
-import '../utils/terminal_settings_provider.dart';
+import '../widgets/host_key_trust_dialog.dart';
 
 /// Screen for browsing remote files via SFTP.
 class SftpScreen extends ConsumerStatefulWidget {
@@ -37,7 +35,6 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
   bool _isLoading = true;
   String? _error;
   bool _isConnected = false;
-  bool _ownsSshConnection = false;
 
   late final SshService _sshService;
 
@@ -46,18 +43,15 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
   @override
   void initState() {
     super.initState();
-    _sshService = ref.read(sshServiceProvider(widget.profileId));
-    _connect();
+    _sshService = ref.read(sshConnectionFactoryProvider).createService();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_connect());
+    });
   }
 
   Future<void> _connect() async {
     try {
-      var client = _sshService.client;
-
-      // SFTP can be opened directly from a connection tile. Reuse an
-      // existing terminal client when available; otherwise establish a
-      // profile-scoped SSH connection that this screen owns.
-      if (client == null) {
+      if (_sshService.client == null) {
         final profile = ref
             .read(profileStorageProvider)
             .getProfile(widget.profileId);
@@ -65,35 +59,25 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
           throw StateError('Connection profile not found.');
         }
 
-        TailscaleSSHSocket? socket;
-        if (profile.connectionMethod == ConnectionMethod.tailscale) {
-          final ts = ref.read(tailscaleServiceProvider);
-          final connection = await ts.dial(
-            profile.host,
-            profile.port,
-            timeout: const Duration(seconds: 10),
-          );
-          socket = TailscaleSSHSocket(connection);
-        }
-
-        final privateKey = profile.keyId == null
-            ? null
-            : await ref.read(keyServiceProvider).getPrivateKey(profile.keyId!);
-        final securePassword = await ref
-            .read(profileStorageProvider)
-            .getPassword(profile.id);
-
-        await _sshService.connect(
-          profile: profile,
-          privateKey: privateKey,
-          password: securePassword ?? profile.password,
-          keepalive: Duration(seconds: ref.read(terminalKeepaliveProvider)),
-          socket: socket,
-        );
-        _ownsSshConnection = true;
-        client = _sshService.client;
+        await ref
+            .read(sshConnectionFactoryProvider)
+            .connect(
+              service: _sshService,
+              profile: profile,
+              onHostKeyDecision: (challenge) {
+                if (!mounted) {
+                  return Future.value(HostKeyTrustDecision.reject);
+                }
+                return showHostKeyTrustDialog(
+                  context: context,
+                  challenge: challenge,
+                  timeout: ref.read(hostKeyVerifierProvider).decisionTimeout,
+                );
+              },
+            );
       }
-
+      if (!mounted) return;
+      final client = _sshService.client;
       if (client == null) {
         throw StateError('SSH connection was not established.');
       }
@@ -103,13 +87,23 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
       setState(() => _isConnected = true);
       await _listDirectory();
     } catch (e) {
-      if (_ownsSshConnection) {
-        await _sshService.disconnect();
-        _ownsSshConnection = false;
-      }
+      await _sshService.disconnect();
       if (!mounted) return;
+      var displayError = 'SFTP failed: $e';
+      if (e is HostKeyChangedException) {
+        final replacement = await showHostKeyChangedDialog(
+          context: context,
+          change: e,
+          verifier: ref.read(hostKeyVerifierProvider),
+        );
+        if (!mounted) return;
+        if (replacement == HostKeyReplacementResult.replaced) {
+          displayError =
+              'Trusted host key replaced. Retry SFTP to connect again.';
+        }
+      }
       setState(() {
-        _error = 'SFTP failed: $e';
+        _error = displayError;
         _isLoading = false;
       });
     }
@@ -304,9 +298,7 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
         }
         return;
       }
-      final bytes = await _sftpService.readFile(
-        _joinPath(entry.filename),
-      );
+      final bytes = await _sftpService.readFile(_joinPath(entry.filename));
       final text = utf8.decode(bytes, allowMalformed: true);
       await Clipboard.setData(ClipboardData(text: text));
       if (mounted) {
@@ -423,13 +415,6 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
   }
 
   Future<void> _openInTerminal() async {
-    // This screen may have created a temporary SSH client for direct SFTP
-    // entry. Release it before the terminal branch creates its own session.
-    if (_ownsSshConnection) {
-      await _sftpService.disconnect();
-      await _sshService.disconnect();
-      _ownsSshConnection = false;
-    }
     if (!mounted) return;
     ref.read(pendingTerminalTabProvider.notifier).state = TerminalTabRequest(
       profileId: widget.profileId,
@@ -439,10 +424,8 @@ class _SftpScreenState extends ConsumerState<SftpScreen> {
 
   @override
   void dispose() {
-    unawaited(_sftpService.disconnect());
-    if (_ownsSshConnection) {
-      unawaited(_sshService.disconnect());
-    }
+    _sftpService.dispose();
+    _sshService.dispose();
     super.dispose();
   }
 
